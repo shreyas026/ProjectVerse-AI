@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Rocket, Mail, Lock, Github, Chrome, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Rocket, Mail, Lock, Github, Chrome, Linkedin, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { authService } from '@/services/auth.service';
 import { useAuthStore } from '@/store';
 
@@ -18,6 +18,48 @@ export function LoginPage() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { setUser } = useAuthStore();
+
+  const handleSocialLogin = async (provider: 'google' | 'github' | 'linkedin') => {
+    setLoading(true);
+    setError('');
+    try {
+      let res;
+      if (provider === 'google') {
+        res = await authService.loginWithGoogle(
+          'google-mock-id',
+          'google.user@projectverse.ai',
+          'Google',
+          'User',
+          'https://api.dicebear.com/7.x/avataaars/svg?seed=google'
+        );
+      } else if (provider === 'github') {
+        res = await authService.loginWithGithub(
+          'github-mock-id',
+          'github.user@projectverse.ai',
+          'Github',
+          'User',
+          'https://api.dicebear.com/7.x/avataaars/svg?seed=github'
+        );
+      } else {
+        res = await authService.loginWithLinkedin(
+          'linkedin-mock-id',
+          'linkedin.user@projectverse.ai',
+          'Linkedin',
+          'User',
+          'https://api.dicebear.com/7.x/avataaars/svg?seed=linkedin'
+        );
+      }
+
+      if (res.success) {
+        setUser(res.data.user as any);
+        navigate('/', { replace: true });
+      }
+    } catch (err: any) {
+      setError(err.message || `Failed to sign in with ${provider}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,9 +99,16 @@ export function LoginPage() {
         <Card>
           <CardContent className="p-6 space-y-4">
             {/* Social Login */}
-            <div className="grid grid-cols-2 gap-3">
-              <Button variant="outline" className="gap-2"><Chrome className="w-4 h-4" /> Google</Button>
-              <Button variant="outline" className="gap-2"><Github className="w-4 h-4" /> GitHub</Button>
+            <div className="grid grid-cols-3 gap-2">
+              <Button type="button" variant="outline" className="gap-1 px-1 text-xs" onClick={() => handleSocialLogin('google')} disabled={loading}>
+                <Chrome className="w-3.5 h-3.5" /> Google
+              </Button>
+              <Button type="button" variant="outline" className="gap-1 px-1 text-xs" onClick={() => handleSocialLogin('github')} disabled={loading}>
+                <Github className="w-3.5 h-3.5" /> GitHub
+              </Button>
+              <Button type="button" variant="outline" className="gap-1 px-1 text-xs" onClick={() => handleSocialLogin('linkedin')} disabled={loading}>
+                <Linkedin className="w-3.5 h-3.5 text-blue-600" /> LinkedIn
+              </Button>
             </div>
 
             <div className="relative">

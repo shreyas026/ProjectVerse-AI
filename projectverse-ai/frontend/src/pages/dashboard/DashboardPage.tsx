@@ -1,35 +1,83 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { mockUser, mockProjects, mockEvents, mockLeaderboard, mockAnalytics } from '@/services/mockData';
+import { authService } from '@/services/auth.service';
+import { projectService } from '@/services/project.service';
+import { eventService } from '@/services/event.service';
+import { userService } from '@/services/user.service';
+import { mockAnalytics } from '@/services/mockData';
 import {
   TrendingUp, FolderOpen, Code2, Trophy, Zap, Calendar,
-  Star, ArrowRight, Flame, Target, Users, Lightbulb
+  Star, ArrowRight, Flame, Target, Users, Lightbulb, Loader2
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
+import type { User, Project, Event, LeaderboardEntry } from '@/types';
 
 export function DashboardPage() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
-  const user = mockUser;
+  const [user, setUser] = useState<User | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        setLoading(true);
+        // Load all data concurrently
+        const [meRes, projData, eventData, leadData] = await Promise.all([
+          authService.getMe(),
+          projectService.getAllProjects({ limit: 3 }),
+          eventService.getAllEvents(),
+          userService.getLeaderboard()
+        ]);
+
+        if (meRes.success) {
+          setUser(meRes.data.user);
+        }
+        setProjects(projData.slice(0, 3));
+        setEvents(eventData.slice(0, 3));
+        setLeaderboard(leadData.slice(0, 5));
+      } catch (err) {
+        console.error('Error loading dashboard data:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
+  if (loading || !user) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-2">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+        <p className="text-muted-foreground text-sm">Loading dashboard...</p>
+      </div>
+    );
+  }
+
   const skills = user.skills || [];
 
   const radarData = [
-    { subject: 'Coding', A: 75, fullMark: 100 },
-    { subject: 'Projects', A: 85, fullMark: 100 },
-    { subject: 'Collaboration', A: 70, fullMark: 100 },
-    { subject: 'Innovation', A: 90, fullMark: 100 },
+    { subject: 'Coding', A: user.scores?.codingRating ? Math.min(100, (user.scores.codingRating / 2500) * 100) : 75, fullMark: 100 },
+    { subject: 'Projects', A: user.scores?.innovationScore ? Math.min(100, (user.scores.innovationScore / 10000) * 100) : 85, fullMark: 100 },
+    { subject: 'Collaboration', A: user.scores?.contributionScore ? Math.min(100, (user.scores.contributionScore / 10000) * 100) : 70, fullMark: 100 },
+    { subject: 'Innovation', A: user.scores?.innovationScore ? Math.min(100, (user.scores.innovationScore / 10000) * 100) : 90, fullMark: 100 },
     { subject: 'Learning', A: 80, fullMark: 100 },
-    { subject: 'Leadership', A: 65, fullMark: 100 },
+    { subject: 'Leadership', A: user.scores?.reliabilityScore || 65, fullMark: 100 },
   ];
 
   const statCards = [
     { title: 'Innovation Score', value: user.scores?.innovationScore || 0, icon: Lightbulb, color: 'text-amber-500', bg: 'bg-amber-500/10', trend: '+12%' },
     { title: 'Coding Rating', value: user.scores?.codingRating || 0, icon: Code2, color: 'text-emerald-500', bg: 'bg-emerald-500/10', trend: '+5%' },
     { title: 'Contribution', value: user.scores?.contributionScore || 0, icon: Target, color: 'text-blue-500', bg: 'bg-blue-500/10', trend: '+8%' },
-    { title: 'Projects', value: 12, icon: FolderOpen, color: 'text-purple-500', bg: 'bg-purple-500/10', trend: '+3' },
+    { title: 'Projects', value: projects.length, icon: FolderOpen, color: 'text-purple-500', bg: 'bg-purple-500/10', trend: `+${projects.length}` },
   ];
 
   return (
@@ -45,10 +93,10 @@ export function DashboardPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="gap-2">
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => navigate('/coding')}>
             <Zap className="w-4 h-4" /> Quick Action
           </Button>
-          <Button size="sm" className="gap-2">
+          <Button size="sm" className="gap-2" onClick={() => navigate('/projects/new')}>
             <FolderOpen className="w-4 h-4" /> New Project
           </Button>
         </div>
@@ -142,26 +190,34 @@ export function DashboardPage() {
                   <CardTitle className="text-base flex items-center gap-2">
                     <FolderOpen className="w-4 h-4 text-primary" /> Recent Projects
                   </CardTitle>
-                  <Button variant="ghost" size="sm" className="gap-1">View All <ArrowRight className="w-4 h-4" /></Button>
+                  <Button variant="ghost" size="sm" className="gap-1" onClick={() => navigate('/projects')}>View All <ArrowRight className="w-4 h-4" /></Button>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
-                {mockProjects.slice(0, 3).map((p) => (
-                  <div key={p._id} className="flex items-start gap-3 p-3 rounded-xl hover:bg-accent transition-colors cursor-pointer group">
-                    <div className="w-12 h-12 rounded-lg bg-muted overflow-hidden shrink-0">
-                      <img src={p.thumbnail} alt={p.title} className="w-full h-full object-cover" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate group-hover:text-primary transition-colors">{p.title}</p>
-                      <p className="text-xs text-muted-foreground truncate">{p.shortDescription}</p>
-                      <div className="flex gap-1 mt-1.5 flex-wrap">
-                        {p.technologies.slice(0, 3).map((t) => (
-                          <Badge key={t} variant="secondary" className="text-[10px] px-1.5 py-0">{t}</Badge>
-                        ))}
+                {projects.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-6">No projects found.</p>
+                ) : (
+                  projects.map((p) => (
+                    <div key={p._id} className="flex items-start gap-3 p-3 rounded-xl hover:bg-accent transition-colors cursor-pointer group" onClick={() => navigate(`/projects/${p._id}`)}>
+                      <div className="w-12 h-12 rounded-lg bg-muted overflow-hidden shrink-0">
+                        {p.thumbnail ? (
+                          <img src={p.thumbnail} alt={p.title} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-primary/10 text-primary"><FolderOpen className="w-6 h-6" /></div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate group-hover:text-primary transition-colors">{p.title}</p>
+                        <p className="text-xs text-muted-foreground truncate">{p.shortDescription}</p>
+                        <div className="flex gap-1 mt-1.5 flex-wrap">
+                          {p.technologies.slice(0, 3).map((t) => (
+                            <Badge key={t} variant="secondary" className="text-[10px] px-1.5 py-0">{t}</Badge>
+                          ))}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </CardContent>
             </Card>
 
@@ -172,28 +228,32 @@ export function DashboardPage() {
                   <CardTitle className="text-base flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-primary" /> Upcoming Events
                   </CardTitle>
-                  <Button variant="ghost" size="sm" className="gap-1">View All <ArrowRight className="w-4 h-4" /></Button>
+                  <Button variant="ghost" size="sm" className="gap-1" onClick={() => navigate('/events')}>View All <ArrowRight className="w-4 h-4" /></Button>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
-                {mockEvents.slice(0, 3).map((e) => (
-                  <div key={e._id} className="flex items-start gap-3 p-3 rounded-xl hover:bg-accent transition-colors cursor-pointer group">
-                    <div className="w-12 h-12 rounded-lg bg-primary/10 flex flex-col items-center justify-center shrink-0">
-                      <span className="text-[10px] font-bold text-primary uppercase">{new Date(e.startDate).toLocaleString('default', { month: 'short' })}</span>
-                      <span className="text-lg font-bold text-primary leading-none">{new Date(e.startDate).getDate()}</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate group-hover:text-primary transition-colors">{e.title}</p>
-                      <p className="text-xs text-muted-foreground">{e.mode} • {e.type}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant={e.isRegistered ? 'default' : 'secondary'} className="text-[10px]">
-                          {e.isRegistered ? 'Registered' : 'Open'}
-                        </Badge>
-                        <span className="text-[10px] text-muted-foreground">{e.currentParticipants}/{e.maxParticipants}</span>
+                {events.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-6">No upcoming events found.</p>
+                ) : (
+                  events.map((e) => (
+                    <div key={e._id} className="flex items-start gap-3 p-3 rounded-xl hover:bg-accent transition-colors cursor-pointer group" onClick={() => navigate(`/events/${e._id}`)}>
+                      <div className="w-12 h-12 rounded-lg bg-primary/10 flex flex-col items-center justify-center shrink-0">
+                        <span className="text-[10px] font-bold text-primary uppercase">{new Date(e.startDate).toLocaleString('default', { month: 'short' })}</span>
+                        <span className="text-lg font-bold text-primary leading-none">{new Date(e.startDate).getDate()}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate group-hover:text-primary transition-colors">{e.title}</p>
+                        <p className="text-xs text-muted-foreground">{e.mode} • {e.type}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant={e.isRegistered ? 'default' : 'secondary'} className="text-[10px]">
+                            {e.isRegistered ? 'Registered' : 'Open'}
+                          </Badge>
+                          <span className="text-[10px] text-muted-foreground">{e.currentParticipants}/{e.maxParticipants}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </CardContent>
             </Card>
           </div>
@@ -205,29 +265,33 @@ export function DashboardPage() {
                 <CardTitle className="text-base flex items-center gap-2">
                   <Trophy className="w-4 h-4 text-amber-500" /> Innovation Leaderboard
                 </CardTitle>
-                <Button variant="ghost" size="sm" className="gap-1">View Full <ArrowRight className="w-4 h-4" /></Button>
+                <Button variant="ghost" size="sm" className="gap-1" onClick={() => navigate('/leaderboard')}>View Full <ArrowRight className="w-4 h-4" /></Button>
               </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {mockLeaderboard.slice(0, 5).map((entry, i) => (
-                  <div key={entry.userId._id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-accent transition-colors">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${
-                      i === 0 ? 'bg-amber-500/20 text-amber-500' : i === 1 ? 'bg-slate-400/20 text-slate-400' : i === 2 ? 'bg-orange-600/20 text-orange-600' : 'bg-muted text-muted-foreground'
-                    }`}>
-                      {entry.rank}
+                {leaderboard.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-6">Leaderboard empty.</p>
+                ) : (
+                  leaderboard.map((entry, i) => (
+                    <div key={entry.userId._id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-accent transition-colors">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${
+                        i === 0 ? 'bg-amber-500/20 text-amber-500' : i === 1 ? 'bg-slate-400/20 text-slate-400' : i === 2 ? 'bg-orange-600/20 text-orange-600' : 'bg-muted text-muted-foreground'
+                      }`}>
+                        {entry.rank}
+                      </div>
+                      <img src={entry.userId.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${entry.userId.firstName}`} alt="" className="w-9 h-9 rounded-full bg-muted" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{entry.userId.firstName} {entry.userId.lastName}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold">{entry.totalScore.toLocaleString()}</p>
+                        <p className="text-[10px] text-muted-foreground">pts</p>
+                      </div>
+                      <Star className={`w-4 h-4 ${i < 3 ? 'text-amber-500 fill-amber-500' : 'text-muted'}`} />
                     </div>
-                    <img src={entry.userId.avatar} alt="" className="w-9 h-9 rounded-full bg-muted" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{entry.userId.firstName} {entry.userId.lastName}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-bold">{entry.totalScore.toLocaleString()}</p>
-                      <p className="text-[10px] text-muted-foreground">pts</p>
-                    </div>
-                    <Star className={`w-4 h-4 ${i < 3 ? 'text-amber-500 fill-amber-500' : 'text-muted'}`} />
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>
@@ -240,27 +304,31 @@ export function DashboardPage() {
               <CardDescription>Track and manage your technical skills</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {skills.map((skill) => (
-                  <div key={skill.name} className="flex items-center gap-3 p-3 border rounded-xl">
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <p className="font-medium text-sm">{skill.name}</p>
-                        <Badge variant={skill.verified ? 'default' : 'secondary'} className="text-[10px]">
-                          {skill.verified ? 'Verified' : 'Unverified'}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-2 mt-2">
-                        <Progress
-                          value={skill.level === 'expert' ? 100 : skill.level === 'advanced' ? 75 : skill.level === 'intermediate' ? 50 : 25}
-                          className="h-2 flex-1"
-                        />
-                        <span className="text-xs text-muted-foreground capitalize w-20 text-right">{skill.level}</span>
+              {skills.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">No skills added yet.</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {skills.map((skill) => (
+                    <div key={skill.name} className="flex items-center gap-3 p-3 border rounded-xl">
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <p className="font-medium text-sm">{skill.name}</p>
+                          <Badge variant={skill.verified ? 'default' : 'secondary'} className="text-[10px]">
+                            {skill.verified ? 'Verified' : 'Unverified'}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2 mt-2">
+                          <Progress
+                            value={skill.level === 'expert' ? 100 : skill.level === 'advanced' ? 75 : skill.level === 'intermediate' ? 50 : 25}
+                            className="h-2 flex-1"
+                          />
+                          <span className="text-xs text-muted-foreground capitalize w-20 text-right">{skill.level}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

@@ -1,24 +1,79 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { mockProjects } from '@/services/mockData';
-import { Search, Filter, Grid3X3, List, Heart, Bookmark, Eye, GitBranch, ExternalLink } from 'lucide-react';
+import { projectService } from '@/services/project.service';
+import { Search, Filter, Grid3X3, List, Heart, Bookmark, Eye, GitBranch, ExternalLink, Loader2 } from 'lucide-react';
+import type { Project } from '@/types';
 
-const categories = ['All', 'Web Dev', 'Mobile', 'AI/ML', 'IoT', 'Blockchain', 'Cloud', 'DevOps'];
+const categories = ['All', 'Web Dev', 'Mobile', 'AI/ML', 'IoT', 'Blockchain', 'Cloud', 'DevOps', 'Robotics'];
 
 export function ProjectsListPage() {
+  const navigate = useNavigate();
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
-  const filtered = mockProjects.filter((p) => {
+  useEffect(() => {
+    async function fetchProjects() {
+      try {
+        setLoading(true);
+        const data = await projectService.getAllProjects();
+        setProjects(data);
+      } catch (err) {
+        console.error('Error fetching projects:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchProjects();
+  }, []);
+
+  const handleLike = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    try {
+      const res = await projectService.likeProject(id);
+      if (res) {
+        setProjects(prev => prev.map(p => {
+          if (p._id === id) {
+            // Modify likes array size/content
+            const currentUserId = '1'; // Mock or loaded user ID
+            const newLikes = [...p.likes];
+            const idx = newLikes.indexOf(currentUserId);
+            if (res.liked) {
+              if (idx === -1) newLikes.push(currentUserId);
+            } else {
+              if (idx > -1) newLikes.splice(idx, 1);
+            }
+            return { ...p, likes: newLikes };
+          }
+          return p;
+        }));
+      }
+    } catch (err) {
+      console.error('Error liking project:', err);
+    }
+  };
+
+  const filtered = projects.filter((p) => {
     const matchSearch = !searchQuery || p.title.toLowerCase().includes(searchQuery.toLowerCase()) || p.technologies.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchCat = selectedCategory === 'All' || p.category === selectedCategory;
     return matchSearch && matchCat;
   });
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-2">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+        <p className="text-muted-foreground text-sm">Loading projects...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -28,7 +83,7 @@ export function ProjectsListPage() {
           <h1 className="text-2xl font-bold">Project Showcase</h1>
           <p className="text-muted-foreground">Discover amazing projects from students across campus</p>
         </div>
-        <Button className="gap-2">
+        <Button className="gap-2" onClick={() => navigate('/projects/new')}>
           <GitBranch className="w-4 h-4" /> Submit Project
         </Button>
       </div>
@@ -41,8 +96,8 @@ export function ProjectsListPage() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="icon"><Filter className="w-4 h-4" /></Button>
-          <Button variant={viewMode === 'grid' ? 'default' : 'outline'} size="icon" onClick={() => setViewMode('grid')}><Grid3X3 className="w-4 h-4" /></Button>
-          <Button variant={viewMode === 'list' ? 'default' : 'outline'} size="icon" onClick={() => setViewMode('list')}><List className="w-4 h-4" /></Button>
+          <Button type="button" variant={viewMode === 'grid' ? 'default' : 'outline'} size="icon" onClick={() => setViewMode('grid')}><Grid3X3 className="w-4 h-4" /></Button>
+          <Button type="button" variant={viewMode === 'list' ? 'default' : 'outline'} size="icon" onClick={() => setViewMode('list')}><List className="w-4 h-4" /></Button>
         </div>
       </div>
 
@@ -58,7 +113,7 @@ export function ProjectsListPage() {
       {/* Projects Grid/List */}
       <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4' : 'space-y-3'}>
         {filtered.map((project) => (
-          <Card key={project._id} className={`overflow-hidden hover:shadow-lg transition-all group cursor-pointer ${viewMode === 'list' ? 'flex' : ''}`}>
+          <Card key={project._id} onClick={() => navigate(`/projects/${project._id}`)} className={`overflow-hidden hover:shadow-lg transition-all group cursor-pointer ${viewMode === 'list' ? 'flex' : ''}`}>
             {project.thumbnail && viewMode === 'grid' && (
               <div className="relative h-48 overflow-hidden">
                 <img src={project.thumbnail} alt={project.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
@@ -66,10 +121,10 @@ export function ProjectsListPage() {
                 <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between">
                   <Badge className="bg-primary/90 text-primary-foreground">{project.category}</Badge>
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-white hover:text-white hover:bg-white/20">
+                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-white hover:text-white hover:bg-white/20" onClick={(e) => handleLike(e, project._id)}>
                       <Heart className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-white hover:text-white hover:bg-white/20">
+                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-white hover:text-white hover:bg-white/20" onClick={(e) => e.stopPropagation()}>
                       <Bookmark className="w-4 h-4" />
                     </Button>
                   </div>
@@ -94,16 +149,16 @@ export function ProjectsListPage() {
               <div className="flex items-center justify-between mt-4 pt-3 border-t">
                 <div className="flex items-center gap-3 text-muted-foreground">
                   <span className="flex items-center gap-1 text-xs"><Eye className="w-3.5 h-3.5" /> {project.views}</span>
-                  <span className="flex items-center gap-1 text-xs"><Heart className="w-3.5 h-3.5" /> {project.likes.length}</span>
+                  <span className="flex items-center gap-1 text-xs hover:text-primary cursor-pointer" onClick={(e) => handleLike(e, project._id)}><Heart className="w-3.5 h-3.5" /> {project.likes.length}</span>
                 </div>
                 <div className="flex gap-1">
                   {project.githubUrl && (
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => window.open(project.githubUrl, '_blank')}>
+                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); window.open(project.githubUrl, '_blank'); }}>
                       <GitBranch className="w-4 h-4" />
                     </Button>
                   )}
                   {project.liveUrl && (
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => window.open(project.liveUrl, '_blank')}>
+                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); window.open(project.liveUrl, '_blank'); }}>
                       <ExternalLink className="w-4 h-4" />
                     </Button>
                   )}

@@ -44,6 +44,8 @@ export interface IUser extends Document {
   status: string;
   isEmailVerified: boolean;
   googleId?: string;
+  githubId?: string;
+  linkedinId?: string;
   embedding?: number[];
   lastActive?: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -102,6 +104,8 @@ const UserSchema = new Schema<IUser>(
     status: { type: String, enum: ['active', 'inactive', 'suspended', 'pending_verification'], default: 'pending_verification' },
     isEmailVerified: { type: Boolean, default: false },
     googleId: { type: String, sparse: true },
+    githubId: { type: String, sparse: true },
+    linkedinId: { type: String, sparse: true },
     embedding: [{ type: Number }],
     lastActive: { type: Date, default: Date.now },
   },

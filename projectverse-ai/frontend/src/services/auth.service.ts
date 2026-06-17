@@ -33,6 +33,36 @@ export const authService = {
     return res;
   },
 
+  async loginWithGoogle(googleId: string, email: string, firstName: string, lastName: string, avatar: string) {
+    const res = await apiClient.post<LoginResponse>('/auth/google', { googleId, email, firstName, lastName, avatar });
+    if (res.success) {
+      localStorage.setItem('accessToken', res.data.tokens.accessToken);
+      localStorage.setItem('refreshToken', res.data.tokens.refreshToken);
+      localStorage.setItem('user', JSON.stringify(res.data.user));
+    }
+    return res;
+  },
+
+  async loginWithGithub(githubId: string, email: string, firstName: string, lastName: string, avatar: string) {
+    const res = await apiClient.post<LoginResponse>('/auth/github', { githubId, email, firstName, lastName, avatar });
+    if (res.success) {
+      localStorage.setItem('accessToken', res.data.tokens.accessToken);
+      localStorage.setItem('refreshToken', res.data.tokens.refreshToken);
+      localStorage.setItem('user', JSON.stringify(res.data.user));
+    }
+    return res;
+  },
+
+  async loginWithLinkedin(linkedinId: string, email: string, firstName: string, lastName: string, avatar: string) {
+    const res = await apiClient.post<LoginResponse>('/auth/linkedin', { linkedinId, email, firstName, lastName, avatar });
+    if (res.success) {
+      localStorage.setItem('accessToken', res.data.tokens.accessToken);
+      localStorage.setItem('refreshToken', res.data.tokens.refreshToken);
+      localStorage.setItem('user', JSON.stringify(res.data.user));
+    }
+    return res;
+  },
+
   async register(payload: RegisterPayload) {
     const res = await apiClient.post<LoginResponse>('/auth/register', payload);
     if (res.success) {

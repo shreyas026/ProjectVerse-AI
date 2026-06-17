@@ -1,15 +1,78 @@
-import { useParams } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { mockProjects, mockUser } from '@/services/mockData';
-import { Heart, Bookmark, Eye, GitBranch, ExternalLink, Users, FileText, MessageSquare, CheckCircle } from 'lucide-react';
+import { projectService } from '@/services/project.service';
+import { Heart, Bookmark, Eye, GitBranch, ExternalLink, Users, FileText, MessageSquare, CheckCircle, Loader2 } from 'lucide-react';
+import type { Project } from '@/types';
 
 export function ProjectDetailPage() {
   const { id } = useParams();
-  const project = mockProjects.find((p) => p._id === id) || mockProjects[0];
+  const navigate = useNavigate();
+  const [project, setProject] = useState<Project | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadProject() {
+      if (!id) return;
+      try {
+        setLoading(true);
+        const data = await projectService.getProjectById(id);
+        setProject(data);
+      } catch (err) {
+        console.error('Error loading project details:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadProject();
+  }, [id]);
+
+  const handleLike = async () => {
+    if (!id || !project) return;
+    try {
+      const res = await projectService.likeProject(id);
+      if (res) {
+        const currentUserId = '1';
+        setProject(prev => {
+          if (!prev) return null;
+          const newLikes = [...prev.likes];
+          const idx = newLikes.indexOf(currentUserId);
+          if (res.liked) {
+            if (idx === -1) newLikes.push(currentUserId);
+          } else {
+            if (idx > -1) newLikes.splice(idx, 1);
+          }
+          return { ...prev, likes: newLikes };
+        });
+      }
+    } catch (err) {
+      console.error('Error liking project:', err);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-2">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+        <p className="text-muted-foreground text-sm">Loading project details...</p>
+      </div>
+    );
+  }
+
+  if (!project) {
+    return (
+      <div className="text-center py-12">
+        <h2 className="text-xl font-bold text-destructive">Project Not Found</h2>
+        <p className="text-muted-foreground mt-2">The project you are looking for does not exist or has been deleted.</p>
+        <Button className="mt-4" onClick={() => navigate('/projects')}>Back to Showcase</Button>
+      </div>
+    );
+  }
+
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
@@ -39,10 +102,10 @@ export function ProjectDetailPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="gap-2"><Heart className="w-4 h-4" /> {project.likes.length}</Button>
-          <Button variant="outline" size="sm" className="gap-2"><Bookmark className="w-4 h-4" /> Save</Button>
-          {project.githubUrl && <Button variant="outline" size="sm" className="gap-2" onClick={() => window.open(project.githubUrl, '_blank')}><GitBranch className="w-4 h-4" /> Code</Button>}
-          {project.liveUrl && <Button size="sm" className="gap-2" onClick={() => window.open(project.liveUrl, '_blank')}><ExternalLink className="w-4 h-4" /> Live Demo</Button>}
+          <Button type="button" variant="outline" size="sm" className="gap-2" onClick={handleLike}><Heart className="w-4 h-4" /> {project.likes.length}</Button>
+          <Button type="button" variant="outline" size="sm" className="gap-2"><Bookmark className="w-4 h-4" /> Save</Button>
+          {project.githubUrl && <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => window.open(project.githubUrl, '_blank')}><GitBranch className="w-4 h-4" /> Code</Button>}
+          {project.liveUrl && <Button type="button" size="sm" className="gap-2" onClick={() => window.open(project.liveUrl, '_blank')}><ExternalLink className="w-4 h-4" /> Live Demo</Button>}
         </div>
       </div>
 

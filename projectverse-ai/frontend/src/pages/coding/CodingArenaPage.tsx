@@ -4,8 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
+import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { mockChallenges, mockUser } from '@/services/mockData';
-import { Code2, Trophy, Flame, Target, Zap, Clock, Brain, ChevronRight, TrendingUp, Star, Bot, User, Users, Timer, Search } from 'lucide-react';
+import { Code2, Trophy, Flame, Target, Zap, Clock, Brain, ChevronRight, TrendingUp, Star, Bot, User, Users, Timer, Search, CheckCircle, Play } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '@/services/api/client';
 

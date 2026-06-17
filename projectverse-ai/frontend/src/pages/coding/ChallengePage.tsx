@@ -102,7 +102,7 @@ export function ChallengePage() {
     setCode(CODE_TEMPLATES[lang] || CODE_TEMPLATES.javascript);
   };
 
-  const difficultyColors = {
+  const difficultyColors: Record<string, string> = {
     easy: 'bg-emerald-500/10 text-emerald-500',
     medium: 'bg-amber-500/10 text-amber-500',
     hard: 'bg-red-500/10 text-red-500',
@@ -118,7 +118,7 @@ export function ChallengePage() {
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <h1 className="text-2xl font-bold">{challenge.title}</h1>
-                <Badge className={`${difficultyColors[challenge.difficulty]} capitalize`}>{challenge.difficulty}</Badge>
+                <Badge className={`${difficultyColors[challenge.difficulty as string || 'easy']} capitalize`}>{challenge.difficulty}</Badge>
               </div>
               <div className="flex items-center gap-4 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1"><CheckCircle className="w-4 h-4" /> {challenge.acceptanceRate}% acceptance</span>
@@ -150,7 +150,7 @@ export function ChallengePage() {
                   <h3 className="font-semibold mb-2">Constraints</h3>
                   <p className="text-sm text-muted-foreground whitespace-pre-line">{challenge.constraints}</p>
                 </div>
-                {challenge.examples.map((ex, i) => (
+                {challenge.examples?.map((ex: any, i: number) => (
                   <Card key={i} className="bg-muted/50">
                     <CardContent className="p-4 space-y-2">
                       <p className="font-medium text-sm">Example {i + 1}:</p>
@@ -165,7 +165,7 @@ export function ChallengePage() {
               </TabsContent>
 
               <TabsContent value="hints" className="mt-4">
-                {challenge.hints.map((hint, i) => (
+                {challenge.hints?.map((hint: any, i: number) => (
                   <Card key={i} className="mb-2">
                     <CardContent className="p-4 flex items-start gap-3">
                       <Lightbulb className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />

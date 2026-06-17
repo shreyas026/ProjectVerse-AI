@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useSidebarStore, useNotificationStore, useAuthStore } from '@/store';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -19,6 +20,7 @@ import { useThemeStore } from '@/store';
 import { authService } from '@/services/auth.service';
 
 export function Topbar() {
+  const navigate = useNavigate();
   const { toggleMobile } = useSidebarStore();
   const { theme, setTheme } = useThemeStore();
   const { notifications, unreadCount } = useNotificationStore();
@@ -26,10 +28,10 @@ export function Topbar() {
   const [showSearch, setShowSearch] = useState(false);
 
   const quickActions = [
-    { icon: Zap, label: 'New Project', color: 'text-yellow-500' },
-    { icon: MessageSquare, label: 'New Message', color: 'text-blue-500' },
-    { icon: Calendar, label: 'New Event', color: 'text-green-500' },
-    { icon: Trophy, label: 'Coding Arena', color: 'text-purple-500' },
+    { icon: Zap, label: 'New Project', color: 'text-yellow-500', path: '/projects/new' },
+    { icon: MessageSquare, label: 'New Message', color: 'text-blue-500', path: '/messages' },
+    { icon: Calendar, label: 'New Event', color: 'text-green-500', path: '/events' },
+    { icon: Trophy, label: 'Coding Arena', color: 'text-purple-500', path: '/coding' },
   ];
 
   return (
@@ -65,6 +67,7 @@ export function Topbar() {
                     <button
                       key={action.label}
                       className="flex items-center gap-2 p-2 rounded-lg hover:bg-accent text-left transition-colors"
+                      onClick={() => navigate(action.path)}
                     >
                       <action.icon className={cn('w-4 h-4', action.color)} />
                       <span className="text-sm">{action.label}</span>
@@ -150,10 +153,10 @@ export function Topbar() {
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>Quick Create</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>New Project</DropdownMenuItem>
-              <DropdownMenuItem>Create Team</DropdownMenuItem>
-              <DropdownMenuItem>Post Event</DropdownMenuItem>
-              <DropdownMenuItem>Ask AI Mentor</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate('/projects/new')} className="cursor-pointer">New Project</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate('/teams')} className="cursor-pointer">Create Team</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate('/events')} className="cursor-pointer">Post Event</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate('/ai/mentor')} className="cursor-pointer">Ask AI Mentor</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

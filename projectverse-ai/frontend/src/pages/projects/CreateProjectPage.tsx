@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,27 +8,78 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { Upload, X, Plus, Sparkles } from 'lucide-react';
+import { Upload, X, Plus, Sparkles, Loader2 } from 'lucide-react';
+import { projectService } from '@/services/project.service';
 
 const TECH_OPTIONS = ['React', 'Node.js', 'Python', 'TypeScript', 'MongoDB', 'TensorFlow', 'PyTorch', 'Flutter', 'AWS', 'Docker', 'Go', 'Rust', 'Java', 'C++', 'PostgreSQL'];
 const CATEGORIES = ['Web Dev', 'Mobile', 'AI/ML', 'IoT', 'Blockchain', 'Cloud', 'DevOps', 'Cybersecurity', 'Data Science'];
 
 export function CreateProjectPage() {
+  const navigate = useNavigate();
   const [title, setTitle] = useState('');
+  const [shortDescription, setShortDescription] = useState('');
+  const [description, setDescription] = useState('');
+  const [category, setCategory] = useState('Web Dev');
+  const [status, setStatus] = useState<'idea' | 'planning' | 'in_progress' | 'completed' | 'deployed'>('in_progress');
   const [selectedTech, setSelectedTech] = useState<string[]>([]);
   const [customTech, setCustomTech] = useState('');
+  const [githubUrl, setGithubUrl] = useState('');
+  const [liveUrl, setLiveUrl] = useState('');
+  const [thumbnail, setThumbnail] = useState('https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800&auto=format&fit=crop&q=60');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const addTech = (t: string) => {
     if (!selectedTech.includes(t)) setSelectedTech([...selectedTech, t]);
   };
   const removeTech = (t: string) => setSelectedTech(selectedTech.filter((s) => s !== t));
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title || !shortDescription || !description) {
+      setError('Please fill in all required fields marked with *');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const res = await projectService.createProject({
+        title,
+        shortDescription,
+        description,
+        category,
+        status,
+        technologies: selectedTech,
+        githubUrl,
+        liveUrl,
+        thumbnail,
+        isPublic: true
+      });
+      if (res && res._id) {
+        navigate(`/projects/${res._id}`);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to publish project');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <form onSubmit={handleSubmit} className="max-w-3xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Create New Project</h1>
         <p className="text-muted-foreground">Showcase your work to the campus community</p>
       </div>
+
+      {error && (
+        <div className="bg-destructive/10 border border-destructive/30 text-destructive text-sm rounded-lg px-4 py-3">
+          {error}
+        </div>
+      )}
 
       <Card>
         <CardHeader>
@@ -36,31 +88,31 @@ export function CreateProjectPage() {
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-2">
-            <Label>Project Title *</Label>
-            <Input placeholder="e.g., Smart Agriculture IoT Platform" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <Label htmlFor="title">Project Title *</Label>
+            <Input id="title" placeholder="e.g., Smart Agriculture IoT Platform" value={title} onChange={(e) => setTitle(e.target.value)} required />
           </div>
 
           <div className="space-y-2">
-            <Label>Short Description *</Label>
-            <Input placeholder="One-line description for cards" maxLength={200} />
+            <Label htmlFor="shortDescription">Short Description *</Label>
+            <Input id="shortDescription" placeholder="One-line description for cards" maxLength={200} value={shortDescription} onChange={(e) => setShortDescription(e.target.value)} required />
           </div>
 
           <div className="space-y-2">
-            <Label>Full Description *</Label>
-            <Textarea placeholder="Detailed description of your project..." rows={5} />
+            <Label htmlFor="description">Full Description *</Label>
+            <Textarea id="description" placeholder="Detailed description of your project..." rows={5} value={description} onChange={(e) => setDescription(e.target.value)} required />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Category</Label>
-              <Select>
+              <Select value={category} onValueChange={setCategory}>
                 <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
                 <SelectContent>{CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <Label>Status</Label>
-              <Select defaultValue="in_progress">
+              <Select value={status} onValueChange={(val) => setStatus(val as 'idea' | 'planning' | 'in_progress' | 'completed' | 'deployed')}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="idea">Idea</SelectItem>
@@ -97,7 +149,7 @@ export function CreateProjectPage() {
             )}
             <div className="flex gap-2">
               <Input placeholder="Add custom technology" value={customTech} onChange={(e) => setCustomTech(e.target.value)} className="flex-1" />
-              <Button variant="outline" size="icon" onClick={() => { if (customTech) { addTech(customTech); setCustomTech(''); } }}><Plus className="w-4 h-4" /></Button>
+              <Button type="button" variant="outline" size="icon" onClick={() => { if (customTech) { addTech(customTech); setCustomTech(''); } }}><Plus className="w-4 h-4" /></Button>
             </div>
           </div>
 
@@ -108,12 +160,12 @@ export function CreateProjectPage() {
             <Label>Project Links</Label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">GitHub Repository</Label>
-                <Input placeholder="https://github.com/..." />
+                <Label htmlFor="githubUrl" className="text-xs text-muted-foreground">GitHub Repository</Label>
+                <Input id="githubUrl" placeholder="https://github.com/..." value={githubUrl} onChange={(e) => setGithubUrl(e.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">Live Demo</Label>
-                <Input placeholder="https://..." />
+                <Label htmlFor="liveUrl" className="text-xs text-muted-foreground">Live Demo</Label>
+                <Input id="liveUrl" placeholder="https://..." value={liveUrl} onChange={(e) => setLiveUrl(e.target.value)} />
               </div>
             </div>
           </div>
@@ -146,15 +198,17 @@ export function CreateProjectPage() {
               <p className="text-sm font-medium">AI Originality Check</p>
               <p className="text-xs text-muted-foreground">We&apos;ll check your project for uniqueness using AI when you submit</p>
             </div>
-            <Button variant="outline" size="sm">Learn More</Button>
+            <Button type="button" variant="outline" size="sm">Learn More</Button>
           </div>
 
           <div className="flex justify-end gap-3 pt-4">
-            <Button variant="outline">Save as Draft</Button>
-            <Button>Publish Project</Button>
+            <Button type="button" variant="outline" onClick={() => navigate('/projects')}>Cancel</Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Publishing...</> : 'Publish Project'}
+            </Button>
           </div>
         </CardContent>
       </Card>
-    </div>
+    </form>
   );
 }

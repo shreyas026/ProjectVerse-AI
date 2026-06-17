@@ -96,6 +96,53 @@ router.post('/google', asyncHandler(async (req, res) => {
   });
 }));
 
+// GitHub OAuth
+router.post('/github', asyncHandler(async (req, res) => {
+  const { githubId, email, firstName, lastName, avatar } = req.body;
+
+  let user = await User.findOne({ githubId });
+  if (!user) {
+    user = await User.create({
+      githubId, email, firstName, lastName, avatar,
+      password: Math.random().toString(36).slice(-16),
+      role: 'student', status: 'active', isEmailVerified: true,
+    });
+  }
+
+  const tokens = generateTokens(user._id.toString(), user.role);
+  res.json({
+    success: true,
+    data: {
+      user: { id: user._id, email: user.email, firstName: user.firstName, lastName: user.lastName, role: user.role, avatar: user.avatar },
+      tokens,
+    },
+  });
+}));
+
+// LinkedIn OAuth
+router.post('/linkedin', asyncHandler(async (req, res) => {
+  const { linkedinId, email, firstName, lastName, avatar } = req.body;
+
+  let user = await User.findOne({ linkedinId });
+  if (!user) {
+    user = await User.create({
+      linkedinId, email, firstName, lastName, avatar,
+      password: Math.random().toString(36).slice(-16),
+      role: 'student', status: 'active', isEmailVerified: true,
+    });
+  }
+
+  const tokens = generateTokens(user._id.toString(), user.role);
+  res.json({
+    success: true,
+    data: {
+      user: { id: user._id, email: user.email, firstName: user.firstName, lastName: user.lastName, role: user.role, avatar: user.avatar },
+      tokens,
+    },
+  });
+}));
+
+
 // Refresh Token
 router.post('/refresh', asyncHandler(async (req, res) => {
   const { refreshToken } = req.body;
