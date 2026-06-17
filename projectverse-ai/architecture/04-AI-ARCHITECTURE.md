@@ -7,7 +7,7 @@ ProjectVerse AI integrates THREE dedicated AI systems plus EIGHT ML-powered feat
 
 ### AI System 1: AI MENTOR
 **Purpose**: Personal learning mentor for students
-**Model**: Google Gemini API (gemini-2.0-flash)
+**Model**: Ollama (llama3.1:8b)
 **Temperature**: 0.7 (balanced creativity)
 
 #### Capabilities
@@ -36,31 +36,26 @@ Always respond with:
 
 #### API Integration
 ```javascript
-// File: backend/src/services/ai/mentor.service.ts
-import { GoogleGenerativeAI } from '@google/generative-ai';
+// File: backend/src/services/ollama.service.ts
+import axios from 'axios';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ 
-  model: 'gemini-2.0-flash',
-  systemInstruction: SYSTEM_PROMPT_MENTOR
-});
+const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+const model = process.env.OLLAMA_CHAT_MODEL || 'llama3.1:8b';
 
-export class AIMentorService {
+export class OllamaService {
   async generateRoadmap(careerGoal: string, skills: string[], level: string) {
     const prompt = `Create a detailed learning roadmap for becoming a ${careerGoal}. 
     Current skills: ${skills.join(', ')}. Current level: ${level}.
     Include phases, specific skills, certifications, and project ideas.`;
     
-    const result = await model.generateContent(prompt);
-    return this.parseStructuredResponse(result.response.text());
+    return this.generateResponse('mentor', prompt);
   }
   
-  async interviewPrep(topic: string, difficulty: string) {
+  async generateInterviewPrep(topic: string, difficulty: string) {
     const prompt = `Generate ${difficulty} interview questions for ${topic} 
     with detailed answers and follow-up questions.`;
     
-    const result = await model.generateContent(prompt);
-    return this.parseInterviewQuestions(result.response.text());
+    return this.generateResponse('mentor', prompt);
   }
 }
 ```
@@ -69,7 +64,7 @@ export class AIMentorService {
 
 ### AI System 2: AI CO-FOUNDER
 **Purpose**: Startup co-founder and technical architect
-**Model**: Google Gemini API (gemini-2.0-flash)
+**Model**: Ollama (llama3.1:8b)
 **Temperature**: 0.3 (more deterministic)
 
 #### Capabilities
@@ -142,7 +137,7 @@ export class AICoFounderService {
 
 ### AI System 3: AI CHATBOT
 **Purpose**: General-purpose conversational assistant
-**Model**: Google Gemini API (gemini-2.0-flash)
+**Model**: Ollama (llama3.1:8b)
 **Temperature**: 0.9 (more creative)
 
 #### Capabilities
@@ -510,18 +505,13 @@ def predict_placement():
 
 ### ML Feature 6: AI CODE REVIEWER
 
-**Model**: deepseek-ai/deepseek-coder-6.7b-instruct
-**Source**: https://huggingface.co/deepseek-ai/deepseek-coder-6.7b-instruct
+**Model**: Ollama (codellama:7b)
 **Features**: Bug Detection, Code Quality Analysis, Complexity Analysis, Optimization Suggestions
 
-#### Code Location: `backend/src/services/ml/code-reviewer.service.ts`
+#### Code Location: `backend/src/services/ollama.service.ts`
 
 ```javascript
-import { HfInference } from '@huggingface/inference';
-
-const hf = new HfInference(process.env.HUGGINGFACE_API_TOKEN);
-
-class AICodeReviewerService {
+class OllamaService {
   async reviewCode(code: string, language: string) {
     const prompt = `Review the following ${language} code and provide:
 1. Bug detection (list any bugs found)
@@ -529,87 +519,34 @@ class AICodeReviewerService {
 3. Time complexity analysis
 4. Space complexity analysis
 5. Optimization suggestions
-6. Improved code version
 
 Code:
 \`\`\`${language}
 ${code}
 \`\`\``;
 
-    const response = await hf.textGeneration({
-      model: 'deepseek-ai/deepseek-coder-6.7b-instruct',
-      inputs: prompt,
-      parameters: {
-        max_new_tokens: 1024,
-        temperature: 0.3,
-        return_full_text: false
-      }
-    });
-    
-    return this.parseReviewResponse(response.generated_text);
+    return this.generateResponse('code', prompt);
   }
 }
-```
-
-#### Alternative: Using Hugging Face Inference API
-```bash
-# Set environment variable
-export HUGGINGFACE_API_TOKEN=your_token_here
-
-# Or use Inference Endpoints for dedicated deployment
 ```
 
 ---
 
 ### ML Feature 7: CODING ARENA AI OPPONENT
 
-**Model**: Qwen/Qwen2.5-Coder-7B-Instruct
-**Source**: https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct
+**Model**: Ollama (codellama:7b)
 **Features**: Compete with students, generate solutions, explain solutions
 
-#### Code Location: `backend/src/services/ml/coding-opponent.service.ts`
+#### Code Location: `backend/src/services/ollama.service.ts`
 
 ```javascript
-class CodingOpponentService {
-  async generateSolution(problem: string, difficulty: string, language: string) {
-    const prompt = `Solve the following coding problem in ${language}.
-Provide the solution with detailed comments explaining the approach.
+class OllamaService {
+  async generateSolution(problem: string, language: string) {
+    const prompt = `Solve this coding problem in ${language} with detailed comments:
 
-Problem: ${problem}
-Difficulty: ${difficulty}
+${problem}`;
 
-Solution:`;
-
-    const response = await hf.textGeneration({
-      model: 'Qwen/Qwen2.5-Coder-7B-Instruct',
-      inputs: prompt,
-      parameters: {
-        max_new_tokens: 2048,
-        temperature: 0.5,
-        return_full_text: false
-      }
-    });
-    
-    return response.generated_text;
-  }
-  
-  async explainSolution(code: string, language: string) {
-    const prompt = `Explain the following ${language} solution step by step:
-
-${code}
-
-Explanation:`;
-
-    const response = await hf.textGeneration({
-      model: 'Qwen/Qwen2.5-Coder-7B-Instruct',
-      inputs: prompt,
-      parameters: {
-        max_new_tokens: 1024,
-        temperature: 0.7
-      }
-    });
-    
-    return response.generated_text;
+    return this.generateResponse('code', prompt);
   }
 }
 ```
@@ -695,81 +632,42 @@ class SemanticSearchService {
 
 ---
 
-## AI Feature 9: AI RESUME GENERATOR
+### AI Feature 9: AI RESUME GENERATOR
 
-**Model**: Google Gemini API
+**Model**: Ollama (llama3.1:8b)
 **Input**: User profile data (skills, projects, certifications, achievements)
-**Output**: ATS-Friendly Resume (HTML + PDF)
+**Output**: ATS-Friendly Resume (HTML)
 
-#### Code Location: `backend/src/services/ai/resume-generator.service.ts`
+#### Code Location: `backend/src/services/ollama.service.ts`
 
 ```javascript
-class AIResumeGeneratorService {
-  async generateResume(userId: string) {
-    const user = await User.findById(userId)
-      .populate('projects')
-      .populate('certifications');
+class OllamaService {
+  async generateResume(userData: any) {
+    const prompt = `Generate an ATS-friendly HTML resume for candidate.
+    Use proper HTML with inline CSS for ATS compatibility.`;
     
-    const prompt = `Generate an ATS-friendly resume for the following candidate.
-Use professional formatting with clear sections.
-
-Name: ${user.firstName} ${user.lastName}
-Email: ${user.email}
-College: ${user.college.name}
-Department: ${user.college.department}
-CGPA: ${user.profile.cgpa}
-
-Skills: ${user.skills.map(s => s.name).join(', ')}
-
-Projects:
-${user.projects.map(p => `- ${p.title}: ${p.shortDescription} (${p.technologies.join(', ')})`).join('\n')}
-
-Certifications:
-${user.certifications.map(c => `- ${c.name} by ${c.issuer}`).join('\n')}
-
-Generate HTML resume with proper ATS formatting.`;
-
-    const result = await model.generateContent(prompt);
-    return {
-      html: result.response.text(),
-      downloadUrl: await this.convertToPDF(result.response.text(), userId)
-    };
+    return this.generateResponse('mentor', prompt);
   }
 }
 ```
 
 ---
 
-## AI Feature 10: AI PORTFOLIO GENERATOR
+### AI Feature 10: AI PORTFOLIO GENERATOR
 
-**Model**: Google Gemini API
+**Model**: Ollama (llama3.1:8b)
 **Input**: User profile + projects
 **Output**: Complete portfolio website (HTML/CSS/JS)
 
-#### Code Location: `backend/src/services/ai/portfolio-generator.service.ts`
+#### Code Location: `backend/src/services/ollama.service.ts`
 
 ```javascript
-class AIPortfolioGeneratorService {
-  async generatePortfolio(userId: string) {
-    const user = await User.findById(userId).populate('projects');
+class OllamaService {
+  async generatePortfolio(userData: any) {
+    const prompt = `Create a stunning personal portfolio website as a single HTML file candidate.
+    Use modern CSS with animations. Make it responsive.`;
     
-    const prompt = `Create a stunning personal portfolio website as a single HTML file.
-Include: Hero section, About, Skills, Projects showcase, Certifications, Contact.
-Use modern CSS with animations. Make it responsive.
-
-Data:
-Name: ${user.firstName} ${user.lastName}
-About: ${user.profile.bio}
-Skills: ${user.skills.map(s => `${s.name} (${s.level})`).join(', ')}
-Projects: ${JSON.stringify(user.projects)}
-
-Generate complete HTML with embedded CSS and JavaScript.`;
-
-    const result = await model.generateContent(prompt);
-    return {
-      html: result.response.text(),
-      previewUrl: await this.saveAndServe(result.response.text(), userId)
-    };
+    return this.generateResponse('mentor', prompt);
   }
 }
 ```
@@ -778,39 +676,32 @@ Generate complete HTML with embedded CSS and JavaScript.`;
 
 ## Hugging Face Model Summary
 
-| Feature | Model | HF URL | Integration Type | Code Location |
+| Feature | Model | Host / Library | Integration Type | Code Location |
 |---------|-------|--------|-----------------|---------------|
-| Project Originality | all-MiniLM-L6-v2 | https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2 | Local (Xenova) | `ml/originality-checker.service.ts` |
-| Team Recommendation | all-MiniLM-L6-v2 | Same as above | Local (Xenova) | `ml/team-recommendation.service.ts` |
-| Semantic Search | bge-small-en-v1.5 | https://huggingface.co/BAAI/bge-small-en-v1.5 | Local (Xenova) | `ml/semantic-search.service.ts` |
-| AI Code Review | deepseek-coder-6.7b-instruct | https://huggingface.co/deepseek-ai/deepseek-coder-6.7b-instruct | API/Local | `ml/code-reviewer.service.ts` |
-| Coding Opponent | Qwen2.5-Coder-7B-Instruct | https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct | API/Local | `ml/coding-opponent.service.ts` |
-| Career Prediction | RandomForest + XGBoost | Custom trained | Python Microservice | `ml-service/app.py` |
-| Placement Prediction | RandomForest + XGBoost | Custom trained | Python Microservice | `ml-service/app.py` |
-| AI Mentor | gemini-2.0-flash | Google AI API | API | `ai/mentor.service.ts` |
-| AI Co-Founder | gemini-2.0-flash | Google AI API | API | `ai/cofounder.service.ts` |
-| AI Chatbot | gemini-2.0-flash | Google AI API | API | `ai/chatbot.service.ts` |
-| Resume Generator | gemini-2.0-flash | Google AI API | API | `ai/resume-generator.service.ts` |
-| Portfolio Generator | gemini-2.0-flash | Google AI API | API | `ai/portfolio-generator.service.ts` |
+| Project Originality | all-MiniLM-L6-v2 | Local (Xenova) | Local CPU Inference | `ml/originality-checker.service.ts` |
+| Team Recommendation | all-MiniLM-L6-v2 | Local (Xenova) | Local CPU Inference | `ml/team-recommendation.service.ts` |
+| Semantic Search | bge-small-en-v1.5 | Local (Xenova) | Local CPU Inference | `ml/semantic-search.service.ts` |
+| AI Code Review | codellama:7b | Ollama | Local LLM Inference | `services/ollama.service.ts` |
+| Coding Opponent | codellama:7b | Ollama | Local LLM Inference | `services/ollama.service.ts` |
+| Career Prediction | RandomForest + XGBoost | Python Flask | Microservice (Port 7001) | `ml-service/app.py` |
+| Placement Prediction | RandomForest + XGBoost | Python Flask | Microservice (Port 7001) | `ml-service/app.py` |
+| AI Mentor | llama3.1:8b | Ollama | Local LLM Inference | `services/ollama.service.ts` |
+| AI Co-Founder | llama3.1:8b | Ollama | Local LLM Inference | `services/ollama.service.ts` |
+| AI Chatbot | llama3.1:8b | Ollama | Local LLM Inference | `services/ollama.service.ts` |
+| Resume Generator | llama3.1:8b | Ollama | Local LLM Inference | `services/ollama.service.ts` |
+| Portfolio Generator | llama3.1:8b | Ollama | Local LLM Inference | `services/ollama.service.ts` |
 
 ---
 
-## Environment Variables
-
 ```env
-# Google AI (Gemini)
-GEMINI_API_KEY=your_gemini_api_key
-
-# Hugging Face
-HUGGINGFACE_API_TOKEN=your_hf_token
-HUGGINGFACE_INFERENCE_ENDPOINT=optional_dedicated_endpoint
-
-# MongoDB Atlas Vector Search
-MONGODB_VECTOR_INDEX_ENABLED=true
+# Ollama Configuration
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_CHAT_MODEL=llama3.1:8b
+OLLAMA_CODE_MODEL=codellama:7b
+OLLAMA_EMBED_MODEL=nomic-embed-text
 
 # ML Service
-ML_SERVICE_URL=http://localhost:5001
-ML_SERVICE_API_KEY=your_ml_service_key
+ML_SERVICE_URL=http://localhost:7001
 ```
 
 ## Architecture Diagram
@@ -829,16 +720,16 @@ ML_SERVICE_API_KEY=your_ml_service_key
         |                 |                 |
         v                 v                 v
 +------------+    +------------+    +------------+
-|   Gemini   |    |  Hugging   |    |   Python   |
-|    API     |    |   Face     |    |    ML      |
-| (3 AI      |    |  Models    |    |  Service   |
-|  Systems)  |    | (6 Models) |    | (2 Models) |
+|   Ollama   |    |   Xenova   |    |   Python   |
+|   Server   |    |Transformrs |    |    ML      |
+| (Local LLM |    | (Local CPU |    |  Service   |
+|  Inference)|    | Embeddings)|    | (Port 7001)|
 +------------+    +------------+    +------------+
         |                 |                 |
         +-----------------+-----------------+
                           |
                           v
 +--------------------------------------------------------+
-|              MONGODB ATLAS (VECTOR SEARCH)              |
+|                      MONGODB ATLAS                     |
 +--------------------------------------------------------+
 ```

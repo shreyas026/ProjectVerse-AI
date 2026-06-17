@@ -1,13 +1,14 @@
 import { Server as HttpServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import { logger } from './logger.js';
+import { allowedOrigins } from './cors.js';
 
 let io: SocketIOServer;
 
 export const initializeSocket = (server: HttpServer): void => {
   io = new SocketIOServer(server, {
     cors: {
-      origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+      origin: allowedOrigins,
       credentials: true,
     },
     pingTimeout: 60000,

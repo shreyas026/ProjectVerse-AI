@@ -29,7 +29,7 @@ router.get('/dashboard', authenticate, authorize('admin'), asyncHandler(async (_
   ]);
 
   // Monthly growth (last 6 months)
-  const monthlyGrowth = [];
+  const monthlyGrowth: Array<{ month: string; users: number; projects: number }> = [];
   for (let i = 5; i >= 0; i--) {
     const date = new Date();
     date.setMonth(date.getMonth() - i);
@@ -58,7 +58,7 @@ router.get('/dashboard', authenticate, authorize('admin'), asyncHandler(async (_
       departmentStats,
       monthlyGrowth,
     },
-  }));
+  });
 }));
 
 // Get user stats

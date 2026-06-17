@@ -7,7 +7,7 @@ import { connectDB } from './config/database.js';
 import { initializeSocket } from './config/socket.js';
 import { logger } from './config/logger.js';
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 7000;
 const server = createServer(app);
 
 // Initialize Socket.IO
@@ -28,12 +28,12 @@ connectDB()
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err: Error) => {
-  logger.error('Unhandled Rejection:', err.message);
+  logger.error('Unhandled Rejection:', err);
   server.close(() => process.exit(1));
 });
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (err: Error) => {
-  logger.error('Uncaught Exception:', err.message);
+  logger.error('Uncaught Exception:', err);
   process.exit(1);
 });

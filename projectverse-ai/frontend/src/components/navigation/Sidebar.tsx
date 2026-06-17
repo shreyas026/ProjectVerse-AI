@@ -1,16 +1,16 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { useSidebarStore } from '@/store';
+import { useSidebarStore, useAuthStore } from '@/store';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, FolderOpen, Users, Calendar,
-  MessageSquare, Code2, Bot, Building2, GraduationCap,
-  Lightbulb, Trophy, Settings, HelpCircle, ChevronLeft,
+  MessageSquare, Code2, Bot, Building2,
+  Lightbulb, Trophy, HelpCircle, ChevronLeft,
   ChevronRight, Rocket, Briefcase, Network, FlaskConical,
   LineChart, LogOut
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { mockUser } from '@/services/mockData';
+import { authService } from '@/services/auth.service';
 
 const navSections = [
   {
@@ -58,7 +58,9 @@ const navSections = [
 
 export function Sidebar() {
   const { isCollapsed, toggleCollapse, closeMobile, isMobileOpen } = useSidebarStore();
+  const { user } = useAuthStore();
   const location = useLocation();
+  const storedUser = user || authService.getStoredUser();
 
   return (
     <>
@@ -162,26 +164,32 @@ export function Sidebar() {
         {/* User Profile */}
         <div className="border-t border-border p-3 shrink-0">
           <div className={cn(
-            'flex items-center gap-3 rounded-xl p-2 hover:bg-accent transition-colors cursor-pointer',
+            'flex items-center gap-3 rounded-xl p-2 hover:bg-accent transition-colors cursor-pointer group',
             isCollapsed && !isMobileOpen && 'justify-center'
           )}>
             <img
-              src={mockUser.avatar}
-              alt={mockUser.firstName}
+              src={storedUser?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${storedUser?.firstName}`}
+              alt={storedUser?.firstName || 'User'}
               className="w-9 h-9 rounded-full bg-muted shrink-0"
             />
             {(!isCollapsed || isMobileOpen) && (
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium truncate">
-                  {mockUser.firstName} {mockUser.lastName}
+                  {storedUser?.firstName} {storedUser?.lastName}
                 </p>
                 <p className="text-xs text-muted-foreground truncate">
-                  {mockUser.college?.department} • {mockUser.role}
+                  {storedUser?.role || 'Student'}
                 </p>
               </div>
             )}
             {(!isCollapsed || isMobileOpen) && (
-              <LogOut className="w-4 h-4 text-muted-foreground hover:text-destructive transition-colors shrink-0" />
+              <button
+                onClick={() => authService.logout()}
+                title="Logout"
+                className="opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <LogOut className="w-4 h-4 text-muted-foreground hover:text-destructive transition-colors shrink-0" />
+              </button>
             )}
           </div>
         </div>

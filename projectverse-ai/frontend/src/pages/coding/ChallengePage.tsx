@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,7 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { mockChallenges } from '@/services/mockData';
-import { Play, CheckCircle, Clock, MemoryStick, Lightbulb, BookOpen, Code2, Sparkles, RotateCcw } from 'lucide-react';
+import { Play, CheckCircle, Clock, MemoryStick, Lightbulb, BookOpen, Code2, Sparkles, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { apiClient } from '@/services/api/client';
 
 const CODE_TEMPLATES: Record<string, string> = {
   javascript: `function solve(nums, target) {\n  // Write your solution here\n  \n}`,
@@ -18,19 +19,82 @@ const CODE_TEMPLATES: Record<string, string> = {
 
 export function ChallengePage() {
   const { id } = useParams();
-  const challenge = mockChallenges.find((c) => c._id === id) || mockChallenges[0];
+  const [challenge, setChallenge] = useState<any>(
+    mockChallenges.find((c) => c._id === id) || mockChallenges[0]
+  );
   const [language, setLanguage] = useState('javascript');
   const [code, setCode] = useState(CODE_TEMPLATES.javascript);
   const [output, setOutput] = useState('');
   const [isRunning, setIsRunning] = useState(false);
+  const [activeConsoleTab, setActiveConsoleTab] = useState<'output' | 'tutor'>('output');
+  const [traceSteps, setTraceSteps] = useState<any[]>([]);
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [isTracing, setIsTracing] = useState(false);
+  const [tutorError, setTutorError] = useState('');
 
-  const handleRun = () => {
+  const handleTrace = async () => {
+    setIsTracing(true);
+    setTutorError('');
+    setTraceSteps([]);
+    setActiveConsoleTab('tutor');
+    try {
+      const response = await apiClient.post<any>(`/coding/challenges/${id}/trace`, {
+        code,
+        language
+      });
+      if (response.success && Array.isArray(response.data) && response.data.length > 0) {
+        setTraceSteps(response.data);
+        setCurrentStepIndex(0);
+      } else {
+        setTutorError(response.error?.message || 'Failed to generate code execution trace.');
+      }
+    } catch (err: any) {
+      setTutorError(`Trace error: ${err.message}`);
+    } finally {
+      setIsTracing(false);
+    }
+  };
+
+  useEffect(() => {
+    const fetchChallenge = async () => {
+      try {
+        const response = await apiClient.get<any>(`/coding/challenges/${id}`);
+        if (response.success && response.data) {
+          setChallenge(response.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch challenge details:', err);
+      }
+    };
+    if (id) {
+      fetchChallenge();
+    }
+  }, [id]);
+
+  const handleRun = async () => {
     setIsRunning(true);
     setOutput('');
-    setTimeout(() => {
-      setOutput(`Test Case 1: ✅ PASSED\nInput: nums = [2,7,11,15], target = 9\nOutput: [0,1]\nExpected: [0,1]\nTime: 45ms\nMemory: 12.4MB\n\nTest Case 2: ✅ PASSED\nInput: nums = [3,2,4], target = 6\nOutput: [1,2]\nExpected: [1,2]\nTime: 52ms\nMemory: 12.6MB\n\nTest Case 3: ✅ PASSED\nInput: nums = [3,3], target = 6\nOutput: [0,1]\nExpected: [0,1]\nTime: 41ms\nMemory: 12.1MB\n\n✅ All 3 test cases passed!`);
+    try {
+      const response = await apiClient.post<any>(`/coding/challenges/${id}/submit`, {
+        code,
+        language
+      });
+      if (response.success) {
+        const { status, testCases, executionTime, memoryUsed, score } = response.data;
+        setOutput(`Submission Status: ${status.toUpperCase()}\n` +
+                  `Passed Test Cases: ${testCases.passed} / ${testCases.total}\n` +
+                  `Execution Time: ${executionTime}ms\n` +
+                  `Memory Used: ${memoryUsed}MB\n` +
+                  `Score: ${score} points\n\n` +
+                  `Result: ${status === 'accepted' ? '✅ All test cases passed!' : '❌ Incorrect output or timeout.'}`);
+      } else {
+        setOutput(`Error: ${response.error?.message || 'Submission failed'}`);
+      }
+    } catch (err: any) {
+      setOutput(`Submission Error: ${err.message}`);
+    } finally {
       setIsRunning(false);
-    }, 2000);
+    }
   };
 
   const handleLanguageChange = (lang: string) => {
@@ -152,6 +216,7 @@ export function ChallengePage() {
             </Select>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" className="gap-2" onClick={() => setCode(CODE_TEMPLATES[language])}><RotateCcw className="w-4 h-4" /> Reset</Button>
+              <Button variant="outline" size="sm" className="gap-2 text-violet-500 hover:text-violet-600 hover:bg-violet-500/10 border-violet-500/30" onClick={handleTrace} disabled={isTracing}><Sparkles className="w-4 h-4" /> {isTracing ? 'Tracing...' : 'Code Tutor'}</Button>
               <Button variant="outline" size="sm" className="gap-2" onClick={handleRun} disabled={isRunning}><Play className="w-4 h-4" /> {isRunning ? 'Running...' : 'Run'}</Button>
               <Button size="sm" className="gap-2" onClick={handleRun} disabled={isRunning}><CheckCircle className="w-4 h-4" /> Submit</Button>
             </div>
@@ -163,10 +228,146 @@ export function ChallengePage() {
               className="flex-1 p-4 font-mono text-sm bg-background resize-none focus:outline-none"
               spellCheck={false}
             />
-            {output && (
-              <div className="h-48 border-t bg-muted/30 p-4 overflow-auto">
-                <p className="text-xs font-semibold text-muted-foreground mb-2">OUTPUT</p>
-                <pre className="text-sm font-mono whitespace-pre-wrap">{output}</pre>
+            {(output || traceSteps.length > 0 || isTracing || tutorError) && (
+              <div className="h-72 border-t bg-muted/30 flex flex-col">
+                <div className="flex items-center justify-between border-b px-4 bg-muted/50 shrink-0">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setActiveConsoleTab('output')}
+                      className={`px-3 py-2 text-xs font-semibold border-b-2 transition-all ${
+                        activeConsoleTab === 'output'
+                          ? 'border-primary text-primary'
+                          : 'border-transparent text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      CONSOLE OUTPUT
+                    </button>
+                    <button
+                      onClick={() => setActiveConsoleTab('tutor')}
+                      className={`px-3 py-2 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5 ${
+                        activeConsoleTab === 'tutor'
+                          ? 'border-primary text-primary'
+                          : 'border-transparent text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-violet-500" />
+                      CODE TRACE & TUTOR
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-auto p-4">
+                  {activeConsoleTab === 'output' ? (
+                    output ? (
+                      <pre className="text-sm font-mono whitespace-pre-wrap">{output}</pre>
+                    ) : (
+                      <p className="text-xs text-muted-foreground italic">No output. Run or Submit code to see output.</p>
+                    )
+                  ) : (
+                    <div className="h-full flex flex-col">
+                      {isTracing ? (
+                        <div className="flex-1 flex flex-col items-center justify-center gap-2">
+                          <Sparkles className="w-8 h-8 text-violet-500 animate-pulse" />
+                          <p className="text-sm text-muted-foreground">AI is simulating your code execution line by line...</p>
+                        </div>
+                      ) : tutorError ? (
+                        <p className="text-sm text-red-500">{tutorError}</p>
+                      ) : traceSteps.length > 0 ? (
+                        (() => {
+                          const step = traceSteps[currentStepIndex];
+                          if (!step) return null;
+                          return (
+                            <div className="flex-1 flex flex-col lg:flex-row gap-4 h-full">
+                              {/* Step & Description */}
+                              <div className="flex-1 flex flex-col justify-between">
+                                <div className="space-y-3">
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant="outline" className="border-violet-500/30 text-violet-500 bg-violet-500/5 font-semibold">
+                                      Line {step.line}
+                                    </Badge>
+                                    <span className="text-xs font-mono bg-muted px-2 py-1 rounded border overflow-x-auto max-w-full block">
+                                      {step.instruction}
+                                    </span>
+                                  </div>
+                                  <p className="text-sm text-foreground bg-violet-500/5 border border-violet-500/10 p-3 rounded-lg leading-relaxed">
+                                    {step.explanation}
+                                  </p>
+                                </div>
+                                
+                                {/* Step Controls */}
+                                <div className="flex items-center gap-3 mt-4">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setCurrentStepIndex(0)}
+                                    disabled={currentStepIndex === 0}
+                                  >
+                                    First
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setCurrentStepIndex(prev => Math.max(0, prev - 1))}
+                                    disabled={currentStepIndex === 0}
+                                    className="gap-1"
+                                  >
+                                    <ChevronLeft className="w-4 h-4" /> Prev
+                                  </Button>
+                                  <span className="text-xs text-muted-foreground font-medium">
+                                    Step {currentStepIndex + 1} of {traceSteps.length}
+                                  </span>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setCurrentStepIndex(prev => Math.min(traceSteps.length - 1, prev + 1))}
+                                    disabled={currentStepIndex === traceSteps.length - 1}
+                                    className="gap-1"
+                                  >
+                                    Next <ChevronRight className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setCurrentStepIndex(traceSteps.length - 1)}
+                                    disabled={currentStepIndex === traceSteps.length - 1}
+                                  >
+                                    Last
+                                  </Button>
+                                </div>
+                              </div>
+
+                              {/* Variables Table */}
+                              <div className="w-full lg:w-80 flex flex-col">
+                                <h4 className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1">
+                                  <span>VARIABLES STATE</span>
+                                </h4>
+                                <div className="flex-1 bg-muted/20 border rounded-lg p-3 overflow-auto space-y-2">
+                                  {Object.keys(step.variables || {}).length === 0 ? (
+                                    <p className="text-xs text-muted-foreground italic">No local variables initialized yet.</p>
+                                  ) : (
+                                    Object.entries(step.variables || {}).map(([name, val]) => (
+                                      <div key={name} className="flex justify-between items-center bg-background/50 p-2 rounded border border-border/50 text-xs">
+                                        <span className="font-mono text-violet-500 font-semibold">{name}</span>
+                                        <span className="font-mono text-foreground font-medium overflow-x-auto max-w-[150px] whitespace-nowrap block font-semibold">
+                                          {typeof val === 'object' ? JSON.stringify(val) : String(val)}
+                                        </span>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()
+                      ) : (
+                        <div className="flex-1 flex flex-col items-center justify-center gap-2">
+                          <Sparkles className="w-8 h-8 text-violet-500/40" />
+                          <p className="text-sm text-muted-foreground">Click "Code Tutor" above to generate a step-by-step trace.</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>

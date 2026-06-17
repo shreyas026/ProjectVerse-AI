@@ -1,214 +1,229 @@
 import { Router } from 'express';
-import { Project } from '../models/Project.js';
-import { User } from '../models/User.js';
-import { Event } from '../models/Event.js';
-import { HuggingFaceService } from '../services/huggingface.service.js';
-import { GeminiService } from '../services/gemini.service.js';
+import { OriginalityCheckerService } from '../services/ml/originality-checker.service.js';
+import { TeamRecommendationService } from '../services/ml/team-recommendation.service.js';
+import { EventRecommendationService } from '../services/ml/event-recommendation.service.js';
+import { SemanticSearchService } from '../services/ml/semantic-search.service.js';
+import { OllamaService } from '../services/ollama.service.js';
 import { authenticate } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/error.js';
+import axios from 'axios';
 
 const router = Router();
-const hf = HuggingFaceService.getInstance();
-const gemini = GeminiService.getInstance();
+const originalityChecker = OriginalityCheckerService.getInstance();
+const teamRecommender = TeamRecommendationService.getInstance();
+const eventRecommender = EventRecommendationService.getInstance();
+const semanticSearch = SemanticSearchService.getInstance();
+const ollama = OllamaService.getInstance();
+
+const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:7001';
 
 /**
- * ML Routes - Hugging Face Model Integration
+ * ML Routes - Full AI/ML Feature Integration
  * 
- * Each endpoint below integrates with specific Hugging Face models.
- * See architecture/04-AI-ARCHITECTURE.md for full details.
+ * Uses:
+ * - @xenova/transformers for local HuggingFace models (embeddings, search)
+ * - Ollama for code review & solution generation (codellama:7b)
+ * - Python ML microservice for career/placement prediction (RandomForest + XGBoost)
+ * - Content-based filtering for event recommendations
  */
 
-// Project Originality Check
-// Model: sentence-transformers/all-MiniLM-L6-v2
+// ============================================
+// ML Feature 1: Project Originality Check
+// Model: sentence-transformers/all-MiniLM-L6-v2 (local via @xenova/transformers)
+// ============================================
 router.post('/originality-check', authenticate, asyncHandler(async (req, res) => {
   const { title, description, technologies, projectId } = req.body;
 
-  // Generate embedding for input project
-  const text = `${title} ${description} ${technologies?.join(' ') || ''}`;
-  const [inputEmbedding] = await hf.generateEmbeddings([text]);
-
-  // Get existing project embeddings
-  const existingProjects = await Project.find({ _id: { $ne: projectId } }).select('embedding title');
-  const existingEmbeddings = existingProjects.map((p) => p.embedding || []).filter((e) => e.length > 0);
-
-  // Calculate originality
-  const { score, similarProjects } = await hf.checkOriginality(inputEmbedding, existingEmbeddings);
-
-  // Update project with score
-  if (projectId) {
-    await Project.findByIdAndUpdate(projectId, { originalityScore: score, embedding: inputEmbedding });
-  }
-
-  res.json({
-    success: true,
-    data: {
-      originalityScore: score,
-      isOriginal: score > 60,
-      similarProjects: similarProjects.map((s) => ({
-        projectId: existingProjects[s.index]?._id,
-        title: existingProjects[s.index]?.title,
-        similarityScore: Math.round(s.similarity * 100),
-      })),
-      suggestions: score > 80
-        ? ['Your project is highly original! Consider adding unique features to differentiate further.']
-        : ['Consider adding unique ML models', 'Differentiate with blockchain integration', 'Focus on a niche use case'],
-    },
+  const result = await originalityChecker.checkOriginality({
+    title,
+    description,
+    technologies,
+    projectId,
   });
+
+  res.json({ success: true, data: result });
 }));
 
-// Team Recommendation
-// Model: sentence-transformers/all-MiniLM-L6-v2
+// ============================================
+// ML Feature 2: Team Recommendation
+// Model: sentence-transformers/all-MiniLM-L6-v2 (local via @xenova/transformers)
+// ============================================
 router.post('/team-recommendations', authenticate, asyncHandler(async (req, res) => {
   const { skills, interests } = req.body;
-  const userText = `${skills?.join(' ') || ''} ${interests?.join(' ') || ''}`;
-  const [userEmbedding] = await hf.generateEmbeddings([userText]);
 
-  // Find users with similar/complementary skills
-  const users = await User.find({ _id: { $ne: req.user._id }, role: 'student' }).select('firstName lastName avatar skills embedding college.department');
+  const recommendations = await teamRecommender.getRecommendations(
+    req.user._id.toString(),
+    skills || [],
+    interests || []
+  );
 
-  const recommendations = users.map((u) => {
-    const similarity = u.embedding?.length
-      ? hf.cosineSimilarity(userEmbedding, u.embedding)
-      : 0.5;
-    const skillMatch = u.skills?.filter((s: any) => skills?.includes(s.name)).length || 0;
-    const score = Math.round((similarity * 0.4 + Math.min(skillMatch / 3, 1) * 0.6) * 100);
-
-    return {
-      userId: u._id,
-      name: `${u.firstName} ${u.lastName}`,
-      avatar: u.avatar,
-      department: u.college?.department,
-      compatibilityScore: score,
-      matchedSkills: u.skills?.filter((s: any) => skills?.includes(s.name)).map((s: any) => s.name) || [],
-    };
-  });
-
-  res.json({
-    success: true,
-    data: recommendations.filter((r) => r.compatibilityScore > 30).sort((a, b) => b.compatibilityScore - a.compatibilityScore).slice(0, 10),
-  });
+  res.json({ success: true, data: recommendations });
 }));
 
-// Event Recommendation
+// ============================================
+// ML Feature 3: Event Recommendation
 // Algorithm: Content-based filtering
+// ============================================
 router.post('/event-recommendations', authenticate, asyncHandler(async (req, res) => {
-  const { interests, skills } = req.body;
-  const events = await Event.find({ status: 'published', startDate: { $gte: new Date() } });
+  const { interests, skills, pastEventTypes } = req.body;
 
-  const recommendations = events.map((e) => {
-    let score = 0;
-    const skillMatch = e.technologies?.filter((t: string) => skills?.includes(t)).length || 0;
-    const interestMatch = e.tags?.filter((t: string) => interests?.includes(t)).length || 0;
-    score = skillMatch * 10 + interestMatch * 15;
-    return { eventId: e._id, title: e.title, relevanceScore: Math.min(score, 100) };
-  });
+  const recommendations = await eventRecommender.getRecommendations(
+    interests || [],
+    skills || [],
+    pastEventTypes
+  );
 
-  res.json({
-    success: true,
-    data: recommendations.filter((r) => r.relevanceScore > 0).sort((a, b) => b.relevanceScore - a.relevanceScore).slice(0, 10),
-  });
+  res.json({ success: true, data: recommendations });
 }));
 
-// Career Recommendation
-// Models: RandomForest + XGBoost (Python microservice)
+// ============================================
+// ML Feature 4: Career Recommendation
+// Models: RandomForest + XGBoost (Python microservice at port 7001)
+// ============================================
 router.post('/career-recommendation', authenticate, asyncHandler(async (req, res) => {
-  const { skills, projects, certifications, codingScore } = req.body;
+  const { skills, projects, certifications, codingScore, problemsSolved,
+          githubCommits, internships, hackathonWins } = req.body;
 
-  // Fallback: Use Gemini for career guidance
-  const prompt = `Based on these skills: ${skills?.join(', ')}, ${projects} projects, ${certifications} certifications, and coding score ${codingScore}, what are the top 3 career paths?`;
-  const result = await gemini.generateResponse('mentor', prompt);
+  try {
+    // Call Python ML microservice
+    const mlResponse = await axios.post(`${ML_SERVICE_URL}/predict/career`, {
+      project_count: projects || 0,
+      coding_score: codingScore || 0,
+      certifications_count: certifications || 0,
+      problems_solved: problemsSolved || 0,
+      github_commits: githubCommits || 0,
+      internship_count: internships || 0,
+      hackathon_wins: hackathonWins || 0,
+      has_ml_project: skills?.includes('Machine Learning') ? 1 : 0,
+      has_web_project: skills?.includes('React') || skills?.includes('Node.js') ? 1 : 0,
+      has_mobile_project: skills?.includes('Flutter') || skills?.includes('React Native') ? 1 : 0,
+      has_cloud_project: skills?.includes('AWS') || skills?.includes('Docker') ? 1 : 0,
+    }, { timeout: 10000 });
 
-  res.json({
-    success: true,
-    data: {
-      recommendations: [
-        { career: 'Full Stack Developer', confidence: 85, match: 'Strong web dev skills' },
-        { career: 'AI Engineer', confidence: 72, match: 'ML knowledge detected' },
-        { career: 'DevOps Engineer', confidence: 65, match: 'Cloud skills present' },
-      ],
-      aiAnalysis: result,
-    },
-  });
+    res.json({ success: true, data: mlResponse.data.data });
+  } catch (error: any) {
+    // Fallback: Use Ollama for career guidance
+    const prompt = `Based on these skills: ${skills?.join(', ')}, ${projects} projects, ${certifications} certifications, and coding score ${codingScore}, what are the top 3 career paths? Provide confidence percentages.`;
+    const aiAnalysis = await ollama.generateResponse('mentor', prompt);
+
+    res.json({
+      success: true,
+      data: {
+        recommendations: [
+          { career: 'Full Stack Developer', confidence: 85, match: 'Strong web dev skills' },
+          { career: 'AI Engineer', confidence: 72, match: 'ML knowledge detected' },
+          { career: 'DevOps Engineer', confidence: 65, match: 'Cloud skills present' },
+        ],
+        aiAnalysis,
+        source: 'fallback',
+      },
+    });
+  }
 }));
 
-// Placement Prediction
-// Models: RandomForest + XGBoost (Python microservice)
+// ============================================
+// ML Feature 5: Placement Prediction
+// Models: RandomForest + XGBoost (Python microservice at port 7001)
+// ============================================
 router.post('/placement-prediction', authenticate, asyncHandler(async (req, res) => {
-  const { projects, skills, certifications, codingScore, cgpa } = req.body;
+  const { projects, skills, certifications, codingScore, cgpa,
+          problemsSolved, githubCommits, internships, hackathonWins, contributionScore } = req.body;
 
-  // Simple scoring algorithm (replace with ML model)
-  const projectScore = Math.min((projects || 0) * 10, 30);
-  const skillScore = Math.min((skills?.length || 0) * 5, 25);
-  const certScore = Math.min((certifications || 0) * 5, 15);
-  const codingScoreNorm = Math.min(((codingScore || 0) / 3000) * 20, 20);
-  const cgpaScore = Math.min(((cgpa || 0) / 10) * 10, 10);
+  try {
+    // Call Python ML microservice
+    const mlResponse = await axios.post(`${ML_SERVICE_URL}/predict/placement`, {
+      project_count: projects || 0,
+      coding_score: codingScore || 0,
+      certifications_count: certifications || 0,
+      problems_solved: problemsSolved || 0,
+      github_commits: githubCommits || 0,
+      internship_count: internships || 0,
+      hackathon_wins: hackathonWins || 0,
+      cgpa: cgpa || 7.0,
+      contribution_score: contributionScore || 0,
+    }, { timeout: 10000 });
 
-  const readinessScore = Math.round(projectScore + skillScore + certScore + codingScoreNorm + cgpaScore);
+    res.json({ success: true, data: mlResponse.data.data });
+  } catch (error: any) {
+    // Fallback: Simple scoring algorithm
+    const projectScore = Math.min((projects || 0) * 10, 30);
+    const skillScore = Math.min((skills?.length || 0) * 5, 25);
+    const certScore = Math.min((certifications || 0) * 5, 15);
+    const codingScoreNorm = Math.min(((codingScore || 0) / 3000) * 20, 20);
+    const cgpaScore = Math.min(((cgpa || 0) / 10) * 10, 10);
+    const readinessScore = Math.round(projectScore + skillScore + certScore + codingScoreNorm + cgpaScore);
 
-  res.json({
-    success: true,
-    data: {
-      readinessScore,
-      isReady: readinessScore > 75,
-      category: readinessScore > 75 ? 'Ready' : readinessScore > 50 ? 'Needs Improvement' : 'Not Ready',
-      breakdown: { projectScore, skillScore, certScore, codingScore: codingScoreNorm, cgpaScore },
-      suggestions: readinessScore < 75
-        ? ['Build more projects', 'Improve coding score', 'Get certifications']
-        : ['You are placement ready! Keep improving.'],
-    },
-  });
+    res.json({
+      success: true,
+      data: {
+        readinessScore,
+        isReady: readinessScore > 75,
+        category: readinessScore > 75 ? 'Ready' : readinessScore > 50 ? 'Needs Improvement' : 'Not Ready',
+        breakdown: { projectScore, skillScore, certScore, codingScore: codingScoreNorm, cgpaScore },
+        suggestions: readinessScore < 75
+          ? ['Build more projects', 'Improve coding score', 'Get certifications']
+          : ['You are placement ready! Keep improving.'],
+        source: 'fallback',
+      },
+    });
+  }
 }));
 
-// AI Code Review
-// Model: deepseek-ai/deepseek-coder-6.7b-instruct
+// ============================================
+// ML Feature 6: AI Code Review
+// Model: codellama:7b (via Ollama)
+// ============================================
 router.post('/code-review', authenticate, asyncHandler(async (req, res) => {
   const { code, language } = req.body;
-  const review = await hf.reviewCode(code, language || 'javascript');
+  const review = await ollama.reviewCode(code, language || 'javascript');
   res.json({ success: true, data: { review } });
 }));
 
-// Coding Opponent Solution
-// Model: Qwen/Qwen2.5-Coder-7B-Instruct
+// ============================================
+// ML Feature 7: Coding Arena AI Opponent
+// Model: codellama:7b (via Ollama)
+// ============================================
 router.post('/coding-solution', authenticate, asyncHandler(async (req, res) => {
   const { problem, language } = req.body;
-  const solution = await hf.generateSolution(problem, language || 'javascript');
+  const solution = await ollama.generateSolution(problem, language || 'javascript');
   res.json({ success: true, data: { solution } });
 }));
 
-// Semantic Search
-// Model: BAAI/bge-small-en-v1.5 (uses same embeddings as all-MiniLM-L6-v2)
+// ============================================
+// ML Feature 8: Semantic Search
+// Model: BAAI/bge-small-en-v1.5 (local via @xenova/transformers)
+// ============================================
 router.post('/semantic-search', authenticate, asyncHandler(async (req, res) => {
-  const { query, type = 'projects' } = req.body;
-  const [queryEmbedding] = await hf.generateEmbeddings([query]);
+  const { query, type = 'projects', limit = 10 } = req.body;
 
   let results: any[] = [];
+
   if (type === 'projects') {
-    const projects = await Project.find({ isPublic: true }).select('title description embedding owner');
-    results = projects
-      .filter((p) => p.embedding?.length)
-      .map((p) => ({
-        projectId: p._id,
-        title: p.title,
-        similarity: Math.round(hf.cosineSimilarity(queryEmbedding, p.embedding!) * 100),
-      }))
-      .sort((a, b) => b.similarity - a.similarity)
-      .slice(0, 10);
+    results = await semanticSearch.searchProjects(query, limit);
+  } else if (type === 'users') {
+    results = await semanticSearch.searchUsers(query, limit);
   }
 
-  res.json({ success: true, data: { results, query } });
+  res.json({ success: true, data: { results, query, type } });
 }));
 
-// AI Resume Generator
+// ============================================
+// AI Feature 9: Resume Generator
+// Model: llama3.1:8b (via Ollama)
+// ============================================
 router.post('/resume-generate', authenticate, asyncHandler(async (req, res) => {
   const userData = req.body;
-  const resume = await gemini.generateResume(userData);
+  const resume = await ollama.generateResume(userData);
   res.json({ success: true, data: { html: resume } });
 }));
 
-// AI Portfolio Generator
+// ============================================
+// AI Feature 10: Portfolio Generator
+// Model: llama3.1:8b (via Ollama)
+// ============================================
 router.post('/portfolio-generate', authenticate, asyncHandler(async (req, res) => {
   const userData = req.body;
-  const portfolio = await gemini.generatePortfolio(userData);
+  const portfolio = await ollama.generatePortfolio(userData);
   res.json({ success: true, data: { html: portfolio } });
 }));
 

@@ -24,6 +24,7 @@ import { MyProfilePage } from '@/pages/profile/MyProfilePage';
 import { WorkspacePage } from '@/pages/workspace/WorkspacePage';
 import { LoginPage } from '@/pages/auth/LoginPage';
 import { RegisterPage } from '@/pages/auth/RegisterPage';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
 function App() {
   return (
@@ -33,8 +34,8 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
 
-        {/* Main App Routes */}
-        <Route element={<MainLayout />}>
+        {/* Main App Routes (Protected) */}
+        <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
           <Route path="/" element={<DashboardPage />} />
 
           {/* Projects */}

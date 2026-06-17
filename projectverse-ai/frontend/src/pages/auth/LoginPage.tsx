@@ -1,17 +1,46 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Rocket, Mail, Lock, Github, Chrome, Eye, EyeOff } from 'lucide-react';
+import { Rocket, Mail, Lock, Github, Chrome, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { authService } from '@/services/auth.service';
+import { useAuthStore } from '@/store';
 
 export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const { setUser } = useAuthStore();
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) {
+      setError('Please enter email and password');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const res = await authService.login(email, password);
+      if (res.success) {
+        setUser(res.data.user as any);
+        navigate('/', { replace: true });
+      }
+    } catch (err: any) {
+      setError(err.message || 'Invalid email or password');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-primary/10 p-4">
@@ -40,8 +69,15 @@ export function LoginPage() {
               </div>
             </div>
 
+            {/* Error message */}
+            {error && (
+              <div className="bg-destructive/10 border border-destructive/30 text-destructive text-sm rounded-lg px-3 py-2">
+                {error}
+              </div>
+            )}
+
             {/* Email Login */}
-            <div className="space-y-3">
+            <form onSubmit={handleLogin} className="space-y-3">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <div className="relative">
@@ -54,7 +90,7 @@ export function LoginPage() {
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input id="password" type={showPassword ? 'text' : 'password'} placeholder="Enter your password" className="pl-10 pr-10" value={password} onChange={(e) => setPassword(e.target.value)} />
-                  <Button variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8" onClick={() => setShowPassword(!showPassword)}>
+                  <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8" onClick={() => setShowPassword(!showPassword)}>
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </Button>
                 </div>
@@ -66,7 +102,14 @@ export function LoginPage() {
                 </div>
                 <Link to="/forgot-password" className="text-sm text-primary hover:underline">Forgot password?</Link>
               </div>
-              <Button className="w-full" size="lg">Sign In</Button>
+              <Button type="submit" className="w-full" size="lg" disabled={loading}>
+                {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Signing in...</> : 'Sign In'}
+              </Button>
+            </form>
+
+            {/* Demo login hint */}
+            <div className="bg-muted/50 rounded-lg px-3 py-2 text-xs text-muted-foreground text-center">
+              Demo: <code className="text-primary">demo@projectverse.ai</code> / <code className="text-primary">Demo@12345</code>
             </div>
           </CardContent>
         </Card>

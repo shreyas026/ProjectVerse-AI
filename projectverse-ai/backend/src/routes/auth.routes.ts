@@ -20,6 +20,14 @@ const generateTokens = (userId: string, role: string) => {
 router.post('/register', asyncHandler(async (req, res) => {
   const { email, password, firstName, lastName, role, college } = req.body;
 
+  if (!email || !password || !firstName || !lastName) {
+    res.status(400).json({
+      success: false,
+      error: { code: 'VALIDATION_ERROR', message: 'First name, last name, email, and password are required' },
+    });
+    return;
+  }
+
   const existingUser = await User.findOne({ email });
   if (existingUser) {
     res.status(409).json({ success: false, error: { code: 'EMAIL_EXISTS', message: 'Email already registered' } });
@@ -109,7 +117,7 @@ router.get('/me', authenticate, asyncHandler(async (req, res) => {
 
 // Logout
 router.post('/logout', authenticate, asyncHandler(async (_req, res) => {
-  res.json({ success: true, message: 'Logged out successfully' }));
+  res.json({ success: true, message: 'Logged out successfully' });
 }));
 
 export default router;

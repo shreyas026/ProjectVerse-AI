@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { mockAIConversations, mockUser } from '@/services/mockData';
 import { Send, Bot, User, BookOpen, Briefcase, Target, Award, Lightbulb, Sparkles, Compass, ChevronRight, GraduationCap } from 'lucide-react';
+import { aiService } from '@/services/ai.service';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -21,33 +22,40 @@ const quickActions = [
 ];
 
 export function AIMentorPage() {
-  const [messages, setMessages] = useState<Message[]>(mockAIConversations[0]?.messages || []);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, isLoading]);
+
+  const getConversationId = async () => {
+    if (conversationId) return conversationId;
+    const conversation = await aiService.createMentorConversation();
+    setConversationId(conversation._id);
+    return conversation._id;
+  };
 
   const handleSend = async () => {
-    if (!input.trim()) return;
-    const userMsg: Message = { role: 'user', content: input };
-    setMessages((prev) => [...prev, userMsg]);
+    const prompt = input.trim();
+    if (!prompt) return;
+    setMessages((prev) => [...prev, { role: 'user', content: prompt }]);
     setInput('');
     setIsLoading(true);
 
-    setTimeout(() => {
-      const responses: Record<string, string> = {
-        'ai engineer': `Great choice! Here's your personalized roadmap to become an AI Engineer:\n\n**Phase 1: Foundations (3 months)**\n• Master Python, NumPy, Pandas\n• Linear Algebra, Calculus, Probability\n• Git, Jupyter, VS Code\n\n**Phase 2: Machine Learning (4 months)**\n• Supervised & Unsupervised Learning\n• Scikit-learn, Feature Engineering\n• Projects: House Price Prediction, Sentiment Analysis\n\n**Phase 3: Deep Learning (4 months)**\n• Neural Networks, CNNs, RNNs, Transformers\n• PyTorch or TensorFlow\n• Projects: Image Classifier, Chatbot\n\n**Phase 4: MLOps (3 months)**\n• Docker, Kubernetes, CI/CD\n• MLflow, Model Deployment\n• Cloud: AWS SageMaker or GCP Vertex AI\n\n**Top Certifications:**\n1. Deep Learning Specialization (Coursera)\n2. TensorFlow Developer Certificate\n3. AWS Machine Learning Specialty`,
-      };
-      const lower = input.toLowerCase();
-      const responseText = Object.entries(responses).find(([k]) => lower.includes(k))?.[1] ||
-        `That's a great question! As your AI Mentor, I'm here to help you navigate your tech career.\n\nBased on your profile (CSE student with React, Node.js, and Python skills), here's what I recommend:\n\n1. **Continue strengthening your full-stack skills** - You're already good with React and Node.js\n2. **Add AI/ML to your toolkit** - Your Python knowledge is a great foundation\n3. **Build projects that combine both** - Full-stack AI applications are in high demand\n\nWould you like me to create a detailed learning plan or help you with something specific?`;
-
-      setMessages((prev) => [...prev, { role: 'assistant', content: responseText }]);
+    try {
+      const activeConversationId = await getConversationId();
+      const data = await aiService.sendMentorMessage(activeConversationId, prompt);
+      setMessages((prev) => [...prev, { role: 'assistant', content: data.response }]);
+    } catch (err: any) {
+      console.error(err);
+      setMessages((prev) => [...prev, { role: 'assistant', content: `Error: ${err.message || 'Failed to send message.'}` }]);
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   return (

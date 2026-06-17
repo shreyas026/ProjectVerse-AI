@@ -76,7 +76,7 @@ export function MyProfilePage() {
                 <span className="text-xs text-muted-foreground">{stat.label}</span>
               </div>
               <p className="text-xl font-bold">{stat.value?.toLocaleString()}</p>
-              <Progress value={((stat.raw ?? stat.value ?? 0) / stat.max) * 100} className="mt-2 h-1.5" />
+              <Progress value={(((stat.raw ?? (typeof stat.value === 'number' ? stat.value : 0)) / stat.max) * 100)} className="mt-2 h-1.5" />
             </CardContent>
           </Card>
         ))}

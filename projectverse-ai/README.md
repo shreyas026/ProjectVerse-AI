@@ -149,7 +149,7 @@ cp .env.example .env
 # Frontend
 cd ../frontend
 # Create .env.local with:
-# VITE_API_URL=http://localhost:5000/api/v1
+# VITE_API_URL=http://localhost:7000/api/v1
 ```
 
 ### 3. Start Development Servers
@@ -165,12 +165,12 @@ npm run dev
 ```
 
 Frontend: http://localhost:3000
-Backend API: http://localhost:5000
+Backend API: http://localhost:7000
 
 ### 4. API Documentation
 
 Once the backend is running, API docs are available at:
-- Base URL: `http://localhost:5000/api/v1`
+- Base URL: `http://localhost:7000/api/v1`
 - Health Check: `GET /health`
 
 ### 5. Hugging Face Model Setup

@@ -1,13 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Bot, User, Send, Sparkles, HelpCircle, Code2, BookOpen, Zap } from 'lucide-react';
+import { AIMessageContent } from '@/components/ai/AIMessageContent';
+import { Bot, User, Send, HelpCircle, Code2, BookOpen, Zap, Paperclip, X } from 'lucide-react';
+import { aiService, type ChatbotAttachment } from '@/services/ai.service';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
+  attachments?: ChatbotAttachment[];
 }
 
 const suggestions = [
@@ -17,38 +19,87 @@ const suggestions = [
   { icon: HelpCircle, label: 'General', text: 'What are the best practices for REST API design?' },
 ];
 
+const attachmentType = (file: File): ChatbotAttachment['type'] => {
+  if (file.type.startsWith('image/')) return 'image';
+  if (file.type.startsWith('audio/')) return 'audio';
+  if (file.type.startsWith('video/')) return 'video';
+  return 'file';
+};
+
+const formatSize = (size: number) => {
+  if (size < 1024 * 1024) return Math.ceil(size / 1024) + ' KB';
+  return (size / (1024 * 1024)).toFixed(1) + ' MB';
+};
+
 export function AIChatbotPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [attachments, setAttachments] = useState<ChatbotAttachment[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, isLoading]);
+
+  const getConversationId = async () => {
+    if (conversationId) return conversationId;
+    const conversation = await aiService.createChatbotConversation();
+    setConversationId(conversation._id);
+    return conversation._id;
+  };
+
+  const handleFiles = (files: FileList | null) => {
+    if (!files?.length) return;
+    const next = Array.from(files).map((file) => ({
+      type: attachmentType(file),
+      name: file.name,
+      mimeType: file.type || 'application/octet-stream',
+      size: file.size,
+    }));
+    setAttachments((prev) => [...prev, ...next]);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const handleSend = async () => {
-    if (!input.trim()) return;
-    const userMsg: Message = { role: 'user', content: input };
-    setMessages((prev) => [...prev, userMsg]);
+    const prompt = input.trim();
+    if ((!prompt && attachments.length === 0) || isLoading) return;
+
+    const outgoingAttachments = attachments;
+    const userContent = prompt || 'Please analyze the attached file.';
+    setMessages((prev) => [...prev, { role: 'user', content: userContent, attachments: outgoingAttachments }]);
     setInput('');
+    setAttachments([]);
     setIsLoading(true);
 
-    setTimeout(() => {
-      const responses: Record<string, string> = {
-        jwt: `Here's how to implement JWT authentication in Node.js:\n\n**1. Install dependencies**\n\`npm install jsonwebtoken bcryptjs express\`\n\n**2. Create auth middleware**\n\`\`\`javascript\nconst jwt = require('jsonwebtoken');\n\nconst authMiddleware = (req, res, next) => {\n  const token = req.header('Authorization')?.replace('Bearer ', '');\n  if (!token) return res.status(401).json({ error: 'Access denied' });\n  \n  try {\n    const decoded = jwt.verify(token, process.env.JWT_SECRET);\n    req.userId = decoded.userId;\n    next();\n  } catch (err) {\n    res.status(400).json({ error: 'Invalid token' });\n  }\n};\n\`\`\`\n\n**3. Login route**\n\`\`\`javascript\napp.post('/login', async (req, res) => {\n  const user = await User.findOne({ email: req.body.email });\n  if (!user || !await bcrypt.compare(req.body.password, user.password)) {\n    return res.status(400).json({ error: 'Invalid credentials' });\n  }\n  \n  const token = jwt.sign(\n    { userId: user._id }, \n    process.env.JWT_SECRET, \n    { expiresIn: '24h' }\n  );\n  \n  res.json({ token, user });\n});\n\`\`\`\n\n**Best practices:**\n• Store JWT_SECRET in environment variables\n• Use short expiry (15-60 min) with refresh tokens\n• Always use HTTPS in production\n• Store tokens in httpOnly cookies`,
-        react: `React Hooks are functions that let you use state and lifecycle features in functional components.\n\n**useState** - Manage component state:\n\`\`\`jsx\nconst [count, setCount] = useState(0);\n// count = current value, setCount = updater function\n\`\`\`\n\n**useEffect** - Handle side effects:\n\`\`\`jsx\nuseEffect(() => {\n  // Runs after render\n  fetchData();\n  \n  return () => {\n    // Cleanup function\n    cleanup();\n  };\n}, [dependency]); // Only re-run when dependency changes\n\`\`\`\n\n**useContext** - Access React context:\n\`\`\`jsx\nconst value = useContext(MyContext);\n\`\`\`\n\n**Custom Hooks** - Reuse stateful logic:\n\`\`\`jsx\nfunction useLocalStorage(key, initial) {\n  const [value, setValue] = useState(\n    () => JSON.parse(localStorage.getItem(key)) || initial\n  );\n  useEffect(() => {\n    localStorage.setItem(key, JSON.stringify(value));\n  }, [key, value]);\n  return [value, setValue];\n}\n\`\`\`\n\n**Rules of Hooks:**\n1. Only call hooks at the top level\n2. Only call hooks from React functions\n3. Hooks must start with "use"`,
-      };
-      const lower = input.toLowerCase();
-      let responseText = responses.react;
-      if (lower.includes('jwt') || lower.includes('auth')) responseText = responses.jwt;
-      else if (lower.includes('react') || lower.includes('hook')) responseText = responses.react;
-      else responseText = `Great question! Let me help you with that.\n\nBased on your query about "${input.slice(0, 50)}...", here's what I can tell you:\n\n**Key Points:**\n1. This is an important topic in modern software development\n2. There are several approaches depending on your specific use case\n3. Best practices have evolved significantly in recent years\n\n**Quick Answer:**\nThe most common and recommended approach would be to research thoroughly, start with a minimal viable implementation, and iterate based on your specific requirements.\n\nWould you like me to provide more specific details about any particular aspect?`;
-
-      setMessages((prev) => [...prev, { role: 'assistant', content: responseText }]);
+    try {
+      const activeConversationId = await getConversationId();
+      const data = await aiService.sendChatbotMessage(activeConversationId, userContent, outgoingAttachments);
+      setMessages((prev) => [...prev, { role: 'assistant', content: data.response }]);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'AI request failed';
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: 'I could not reach the AI service. Please make sure you are signed in and Ollama is running, then try again.\n\nDetails: ' + message,
+        },
+      ]);
+    } finally {
       setIsLoading(false);
-    }, 1200);
+    }
   };
+
+  const bubbleClass = (role: Message['role']) => [
+    'max-w-[80%] rounded-2xl px-4 py-3',
+    role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted',
+  ].join(' ');
 
   return (
     <div className="h-[calc(100vh-8rem)] -mx-4 lg:-mx-8 -mt-4 flex flex-col">
@@ -60,7 +111,7 @@ export function AIChatbotPage() {
                 <Bot className="w-10 h-10 text-blue-500" />
               </div>
               <h2 className="text-xl font-bold">AI Assistant</h2>
-              <p className="text-muted-foreground mt-2 max-w-md">Your general-purpose AI helper. Ask me anything about coding, concepts, projects, or college life!</p>
+              <p className="text-muted-foreground mt-2 max-w-md">Ask naturally, add files when useful, and get a direct assistant-style response.</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-6 max-w-lg w-full">
                 {suggestions.map((s) => (
                   <button key={s.label} onClick={() => setInput(s.text)} className="flex items-center gap-3 p-3 rounded-xl border hover:bg-accent transition-colors text-left">
@@ -73,14 +124,23 @@ export function AIChatbotPage() {
           ) : (
             <div className="space-y-4">
               {messages.map((msg, i) => (
-                <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
+                <div key={i} className={['flex gap-3', msg.role === 'user' ? 'justify-end' : ''].join(' ')}>
                   {msg.role === 'assistant' && (
                     <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shrink-0 mt-1">
                       <Bot className="w-4 h-4 text-white" />
                     </div>
                   )}
-                  <div className={`max-w-[80%] ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'} rounded-2xl px-4 py-3`}>
-                    <div className="text-sm whitespace-pre-line leading-relaxed">{msg.content}</div>
+                  <div className={bubbleClass(msg.role)}>
+                    <AIMessageContent content={msg.content} />
+                    {msg.attachments && msg.attachments.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {msg.attachments.map((file, index) => (
+                          <span key={index} className="rounded-full bg-background/20 px-2.5 py-1 text-xs">
+                            {file.type} · {file.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   {msg.role === 'user' && (
                     <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 mt-1">
@@ -107,9 +167,27 @@ export function AIChatbotPage() {
           )}
         </ScrollArea>
         <div className="p-4 border-t">
-          <div className="flex gap-2 max-w-3xl mx-auto">
-            <Input placeholder="Ask anything..." className="flex-1" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()} />
-            <Button onClick={handleSend} disabled={!input.trim() || isLoading} size="icon"><Send className="w-4 h-4" /></Button>
+          <div className="max-w-3xl mx-auto space-y-2">
+            {attachments.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {attachments.map((file, index) => (
+                  <span key={index} className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs text-muted-foreground">
+                    {file.type} · {file.name} · {formatSize(file.size)}
+                    <button type="button" onClick={() => removeAttachment(index)} className="text-foreground hover:text-destructive" aria-label="Remove attachment">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <input ref={fileInputRef} type="file" accept="image/*,audio/*,video/*" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
+              <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isLoading} size="icon">
+                <Paperclip className="w-4 h-4" />
+              </Button>
+              <Input placeholder="Ask anything..." className="flex-1" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()} />
+              <Button onClick={handleSend} disabled={(!input.trim() && attachments.length === 0) || isLoading} size="icon"><Send className="w-4 h-4" /></Button>
+            </div>
           </div>
         </div>
       </div>

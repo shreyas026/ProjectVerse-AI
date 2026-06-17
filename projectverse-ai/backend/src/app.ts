@@ -8,6 +8,7 @@ import rateLimit from 'express-rate-limit';
 import { errorHandler } from './middleware/error.js';
 import { requestValidator } from './middleware/validate.js';
 import { logger } from './config/logger.js';
+import { allowedOrigins } from './config/cors.js';
 
 // Import routes
 import authRoutes from './routes/auth.routes.js';
@@ -32,7 +33,7 @@ const app = express();
 // Security middleware
 app.use(helmet());
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: allowedOrigins,
   credentials: true,
 }));
 
@@ -56,6 +57,38 @@ app.use(compression());
 
 // Validation middleware
 app.use(requestValidator);
+
+// Root route - API info
+app.get('/', (_req, res) => {
+  res.json({
+    name: 'ProjectVerse AI API',
+    version: '1.0.0',
+    description: 'AI-Powered Innovation, Collaboration, Learning & Talent Discovery Ecosystem',
+    documentation: '/health',
+    endpoints: {
+      auth: '/api/v1/auth',
+      users: '/api/v1/users',
+      projects: '/api/v1/projects',
+      ai: '/api/v1/ai',
+      ml: '/api/v1/ml',
+      coding: '/api/v1/coding',
+      events: '/api/v1/events',
+    },
+    ai: {
+      ollama: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
+      models: {
+        chat: process.env.OLLAMA_CHAT_MODEL || 'llama3.1:8b',
+        code: process.env.OLLAMA_CODE_MODEL || 'codellama:7b',
+        embeddings: process.env.OLLAMA_EMBED_MODEL || 'nomic-embed-text',
+      },
+      huggingface: {
+        'all-MiniLM-L6-v2': 'Local (Xenova) - Originality Check, Team Recommendation',
+        'bge-small-en-v1.5': 'Local (Xenova) - Semantic Search',
+      },
+      mlService: process.env.ML_SERVICE_URL || 'http://localhost:7001',
+    },
+  });
+});
 
 // Health check
 app.get('/health', (req, res) => {

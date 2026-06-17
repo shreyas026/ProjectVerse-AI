@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:7000/api/v1';
 
 class ApiClient {
   private baseUrl: string;
@@ -15,10 +15,24 @@ class ApiClient {
       ...(options.headers as Record<string, string> || {}),
     };
 
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      ...options,
-      headers,
-    });
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 100000);
+
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}${endpoint}`, {
+        ...options,
+        headers,
+        signal: options.signal ?? controller.signal,
+      });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new Error('Request timed out. The local AI model may still be generating; please try a shorter prompt.');
+      }
+      throw error;
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
 
     if (response.status === 401) {
       // Try refresh token
@@ -48,7 +62,7 @@ class ApiClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ message: 'Request failed' }));
-      throw new Error(error.message || `HTTP ${response.status}`);
+      throw new Error(error.error?.message || error.message || `HTTP ${response.status}`);
     }
 
     return response.json();

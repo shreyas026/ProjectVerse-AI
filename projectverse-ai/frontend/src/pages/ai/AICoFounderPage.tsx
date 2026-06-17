@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { mockAIConversations } from '@/services/mockData';
 import { Send, Bot, User, Rocket, Database, Code2, Calendar, FileText, Sparkles, Layout, Shield, ChevronRight } from 'lucide-react';
+import { aiService } from '@/services/ai.service';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -23,28 +24,40 @@ const tools = [
 ];
 
 export function AICoFounderPage() {
-  const [messages, setMessages] = useState<Message[]>(mockAIConversations[1]?.messages || []);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, isLoading]);
+
+  const getConversationId = async () => {
+    if (conversationId) return conversationId;
+    const conversation = await aiService.createCofounderConversation();
+    setConversationId(conversation._id);
+    return conversation._id;
+  };
 
   const handleSend = async () => {
-    if (!input.trim()) return;
-    const userMsg: Message = { role: 'user', content: input };
-    setMessages((prev) => [...prev, userMsg]);
+    const prompt = input.trim();
+    if (!prompt) return;
+    setMessages((prev) => [...prev, { role: 'user', content: prompt }]);
     setInput('');
     setIsLoading(true);
 
-    setTimeout(() => {
-      const response = `Great project idea! Here's my comprehensive analysis as your AI Co-Founder:\n\n**1. Executive Summary**\nThis is a high-impact project with strong market potential. The combination of IoT + ML creates a defensible technical moat.\n\n**2. System Architecture**\n\`\`\`\nFrontend (React + TypeScript)\n  ├── Web Dashboard\n  └── Mobile App (Flutter)\n\nBackend (Microservices)\n  ├── API Gateway (Express.js)\n  ├── Auth Service\n  ├── Sensor Data Service\n  ├── ML Prediction Service (Python/FastAPI)\n  └── Notification Service\n\nData Layer\n  ├── MongoDB (user data, configs)\n  ├── InfluxDB (time-series sensor data)\n  └── Redis (cache, sessions)\n\nML Pipeline\n  ├── Kafka (data ingestion)\n  ├── PyTorch (model training)\n  └── Kubernetes (model serving)\n\`\`\`\n\n**3. Tech Stack Recommendation**\n| Layer | Technology | Reason |\n|-------|-----------|--------|\n| Frontend | React + TS | Your team already knows this |\n| Backend | Node.js | Fast iteration, great ecosystem |\n| ML | Python + PyTorch | Industry standard for research |\n| Database | MongoDB + InfluxDB | Best of both worlds |\n| IoT | MQTT + Raspberry Pi | Lightweight, proven |\n\n**4. 12-Week Sprint Plan**\n• Weeks 1-2: MVP with sensor data collection\n• Weeks 3-4: Dashboard and basic ML models\n• Weeks 5-6: Mobile app and notifications\n• Weeks 7-8: Advanced ML and predictions\n• Weeks 9-10: Testing and optimization\n• Weeks 11-12: Deployment and launch\n\n**5. Risk Analysis**\n• **Technical Risk**: ML model accuracy → Mitigate: Start with simple models\n• **Market Risk**: Farmer adoption → Mitigate: Free pilot program\n• **Scaling Risk**: IoT device management → Mitigate: Use AWS IoT Core\n\nEstimated MVP cost: $2,000-3,000 (cloud + hardware)`;
-
-      setMessages((prev) => [...prev, { role: 'assistant', content: response }]);
+    try {
+      const activeConversationId = await getConversationId();
+      const data = await aiService.sendCofounderMessage(activeConversationId, prompt);
+      setMessages((prev) => [...prev, { role: 'assistant', content: data.response }]);
+    } catch (err: any) {
+      console.error(err);
+      setMessages((prev) => [...prev, { role: 'assistant', content: `Error: ${err.message || 'Failed to send message.'}` }]);
+    } finally {
       setIsLoading(false);
-    }, 2000);
+    }
   };
 
   return (

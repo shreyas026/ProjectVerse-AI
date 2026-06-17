@@ -36,11 +36,11 @@ ProjectVerse AI is a comprehensive ecosystem for colleges that combines LinkedIn
 +-------------------------------------------------------------+
                           |
 +-------------------------------------------------------------+
-|                    SERVICE LAYER                             |
+|  Service Layer                             |
 |  +-------------------+  +-------------------------------+   |
 |  |  AI Service       |  |  Notification Service         |   |
-|  |  - Gemini API     |  |  - Socket.IO                  |   |
-|  |  - HuggingFace    |  |  - Email                      |   |
+|  |  - Ollama LLM     |  |  - Socket.IO                  |   |
+|  |  - Transformers   |  |  - Email                      |   |
 |  |  - ML Models      |  |  - Push                       |   |
 |  +-------------------+  +-------------------------------+   |
 |  +-------------------+  +-------------------------------+   |
@@ -60,10 +60,10 @@ ProjectVerse AI is a comprehensive ecosystem for colleges that combines LinkedIn
                           |
 +-------------------------------------------------------------+
 |                EXTERNAL SERVICES                             |
-|  +----------+  +----------+  +----------+  +-------------+ |
-|  |  Google  |  |  Gemini  |  | Hugging  |  |   WebRTC    | |
-|  |  OAuth   |  |   API    |  |  Face    |  |   Servers   | |
-|  +----------+  +----------+  +----------+  +-------------+ |
+|  +----------+  +-------------+                               |
+|  |  Google  |  |   WebRTC    |                               |
+|  |  OAuth   |  |   Servers   |                               |
+|  +----------+  +-------------+                               |
 +-------------------------------------------------------------+
 ```
 
@@ -108,10 +108,9 @@ ProjectVerse AI is a comprehensive ecosystem for colleges that combines LinkedIn
 - **Signaling**: Socket.IO
 
 ### AI/ML
-- **LLM**: Google Gemini API (for 3 AI systems)
-- **Embeddings**: Hugging Face (sentence-transformers)
-- **Code Models**: Hugging Face (DeepSeek Coder, Qwen2.5 Coder)
-- **ML Models**: scikit-learn, XGBoost (Python microservice)
+- **LLM**: Local Ollama (llama3.1:8b for Chat/Mentor/CoFounder, codellama:7b for Code Review)
+- **Embeddings**: Local `@xenova/transformers` (all-MiniLM-L6-v2, bge-small-en-v1.5)
+- **ML Models**: scikit-learn, XGBoost (Python Flask microservice on port 7001)
 
 ### DevOps
 - **Containerization**: Docker
@@ -149,11 +148,11 @@ User -> Frontend -> API Gateway -> Auth Controller -> MongoDB
 
 ### AI Chat Flow
 ```
-User -> Frontend -> API Gateway -> AI Controller -> Gemini API
+User -> Frontend -> API Gateway -> AI Controller -> Local Ollama Service (Port 11434)
                                       |
                                 MongoDB (Chat History)
                                       |
-                                Hugging Face (if ML needed)
+                                Local Transformers (for Embeddings)
 ```
 
 ### Realtime Messaging Flow

@@ -58,23 +58,6 @@ module.exports = {
       },
       boxShadow: {
         xs: "0 1px 2px 0 rgb(0 0 0 / 0.05)",
-        glass: "0 8px 32px 0 rgba(31, 38, 135, 0.37)",
-      },
-      backdropBlur: {
-        xs: "2px",
-        sm: "4px",
-        md: "8px",
-        lg: "12px",
-        xl: "16px",
-        "2xl": "20px",
-      },
-      backgroundColor: {
-        glass: "rgba(255, 255, 255, 0.25)",
-        "glass-dark": "rgba(31, 38, 135, 0.25)",
-      },
-      borderColor: {
-        glass: "rgba(255, 255, 255, 0.18)",
-        "glass-dark": "rgba(255, 255, 255, 0.2)",
       },
       keyframes: {
         "accordion-down": {
@@ -97,23 +80,5 @@ module.exports = {
       },
     },
   },
-  plugins: [
-    require("tailwindcss-animate"),
-    function ({ addComponents }) {
-      addComponents({
-        ".glass": {
-          "@apply bg-glass backdrop-blur-md border border-glass rounded-3xl shadow-glass": {},
-        },
-        ".glass-dark": {
-          "@apply bg-glass-dark backdrop-blur-md border border-glass-dark rounded-3xl shadow-glass": {},
-        },
-        ".glass-sm": {
-          "@apply bg-glass backdrop-blur-sm border border-glass rounded-2xl shadow-glass": {},
-        },
-        ".glass-lg": {
-          "@apply bg-glass backdrop-blur-xl border border-glass rounded-[3rem] shadow-glass": {},
-        },
-      });
-    },
-  ],
+  plugins: [require("tailwindcss-animate")],
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useSidebarStore, useNotificationStore } from '@/store';
+import { useSidebarStore, useNotificationStore, useAuthStore } from '@/store';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,21 +10,20 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { mockNotifications } from '@/services/mockData';
 import { cn } from '@/lib/utils';
 import {
   Search, Bell, Menu, Moon, Sun, TrendingUp,
   Zap, MessageSquare, Calendar, Trophy
 } from 'lucide-react';
 import { useThemeStore } from '@/store';
+import { authService } from '@/services/auth.service';
 
 export function Topbar() {
   const { toggleMobile } = useSidebarStore();
   const { theme, setTheme } = useThemeStore();
+  const { notifications, unreadCount } = useNotificationStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
-  const notifications = useNotificationStore((s) => s.notifications) || mockNotifications;
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   const quickActions = [
     { icon: Zap, label: 'New Project', color: 'text-yellow-500' },
@@ -118,6 +117,9 @@ export function Topbar() {
                 <SheetTitle>Notifications</SheetTitle>
               </SheetHeader>
               <div className="mt-4 space-y-3">
+                {notifications.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-8">No notifications yet</p>
+                )}
                 {notifications.map((n) => (
                   <div
                     key={n._id}

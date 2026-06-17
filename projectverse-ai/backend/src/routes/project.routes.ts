@@ -73,14 +73,30 @@ router.post('/:id/like', authenticate, asyncHandler(async (req, res) => {
   res.json({ success: true, data: { likes: project.likes.length, liked: index === -1 } });
 }));
 
+import { SemanticSearchService } from '../services/ml/semantic-search.service.js';
+
+const semanticSearch = SemanticSearchService.getInstance();
+
 // Semantic search
 router.get('/semantic-search/search', authenticate, asyncHandler(async (req, res) => {
   const { q } = req.query;
-  // TODO: Implement vector search with MongoDB Atlas
-  const projects = await Project.find({ $text: { $search: q as string } })
-    .populate('owner', 'firstName lastName avatar')
-    .limit(20);
-  res.json({ success: true, data: projects });
+  if (!q) {
+    res.json({ success: true, data: [] });
+    return;
+  }
+
+  const results = await semanticSearch.searchProjects(q as string, 20);
+  const projectIds = results.map(r => r.projectId);
+  
+  const projects = await Project.find({ _id: { $in: projectIds } })
+    .populate('owner', 'firstName lastName avatar');
+
+  // Keep the sort order from similarity results
+  const sortedProjects = projectIds
+    .map(id => projects.find(p => p._id.toString() === id))
+    .filter(Boolean);
+
+  res.json({ success: true, data: sortedProjects });
 }));
 
 export default router;

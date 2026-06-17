@@ -192,6 +192,7 @@ export interface Event {
   maxParticipants: number;
   currentParticipants: number;
   prizes: Prize[];
+  agenda?: EventAgendaItem[];
   tags: string[];
   technologies: string[];
   skillLevel: string;
@@ -204,6 +205,13 @@ export interface Prize {
   position: string;
   reward: string;
   amount: number;
+}
+
+export interface EventAgendaItem {
+  time: string;
+  title: string;
+  description: string;
+  speaker?: string;
 }
 
 // Message Types
