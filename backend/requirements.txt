@@ -1,0 +1,53 @@
+# Web Framework
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+python-multipart>=0.0.18
+
+# Database
+motor>=3.6.0
+pymongo[srv]>=4.10.0
+
+# Authentication
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+bcrypt>=4.2.0
+authlib>=1.3.2
+httpx>=0.28.0
+
+# Validation & Settings
+pydantic>=2.10.0
+pydantic-settings>=2.6.0
+email-validator>=2.2.0
+
+# File & Storage
+cloudinary>=1.41.0
+aiofiles>=24.1.0
+python-magic>=0.4.27
+
+# Email
+resend>=2.4.0
+
+# AI & Embeddings
+sentence-transformers>=3.3.0
+numpy>=2.1.0
+scikit-learn>=1.6.0
+
+# LLM (Groq)
+groq>=0.13.0
+
+# Code Quality Analysis
+pylint>=3.3.0
+flake8>=7.1.0
+radon>=6.0.0
+bandit>=1.8.0
+
+# Git Analysis
+gitpython>=3.1.43
+
+# Utilities
+python-dotenv>=1.0.0
+python-dateutil>=2.9.0
+Pillow>=11.0.0
+PyPDF2>=3.0.1
+requests>=2.32.0
+ujson>=5.10.0
